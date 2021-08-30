@@ -82,7 +82,6 @@ PeleC::impose_NSCBC(
           int test_keyword_x, test_keyword_y, test_keyword_z;
           int x_isgn, y_isgn, z_isgn;
           int x_idx_Mask, y_idx_Mask, z_idx_Mask;
-          int x_bc_type, y_bc_type, z_bc_type;
           if (i == domhi[0]) {
             x_isgn = -1;
             test_keyword_x = bcs.hi(0);
@@ -126,36 +125,64 @@ PeleC::impose_NSCBC(
           compute_transverse_terms(
             i, j, k, 2, Tz.data(), dpdx, dudx, dvdx, dwdx, drhodx, dpdy, dudy, dvdy, dwdy, drhody,
             dpdz, dudz, dvdz, dwdz, drhodz, q, qaux);
-          amrex::GpuArray<amrex::Real, NVAR> s_ext;
+          amrex::GpuArray<amrex::Real, NVAR> x_bc_target;
+          amrex::GpuArray<amrex::Real, NVAR> y_bc_target;
+          amrex::GpuArray<amrex::Real, NVAR> z_bc_target;
           amrex::GpuArray<amrex::Real, NVAR> s_int;
 
           // LODI system waves for X
           amrex::GpuArray<amrex::Real, 5> Lx = {{0.0}};
           // LODI system waves for Y
-          amrex::GpuArray<amrex::Real, 5> My = {{0.0}};
+          amrex::GpuArray<amrex::Real, 5> Ly = {{0.0}};
           // LODI system waves for Z
-          amrex::GpuArray<amrex::Real, 5> Nz = {{0.0}};
+          amrex::GpuArray<amrex::Real, 5> Lz = {{0.0}};
           const amrex::Real x[AMREX_SPACEDIM] = {AMREX_D_DECL(
             prob_lo[0] + static_cast<amrex::Real>(i + 0.5) * dx[0],
             prob_lo[1] + static_cast<amrex::Real>(j + 0.5) * dx[1],
             prob_lo[2] + static_cast<amrex::Real>(k + 0.5) * dx[2])};
-          int idir = 0; // X-normal boundary
-          int isgn = x_isgn; // Low boundary
-          x_bc_type = test_keyword_x;
+          int x_bc_type = test_keyword_x;
+          int y_bc_type = test_keyword_y;
+          int z_bc_type = test_keyword_z;
           // UserBC type is 6
           // TODO: I believe this won't work until bcnormal is designed to allow
           //       BC types to be returned based on current index, commenting out for now
           // Now just assumes low is inflow and high is outflow
           if (test_keyword_x == 6) {
-            bcnormal(x, s_int.data(), s_ext.data(), idir, isgn, time, geom.data(), *lprobparm);
+            bcnormal(x, s_int.data(), x_bc_target.data(), 0, x_isgn, time, geom.data(), *lprobparm);
             // TODO: Hard-coded Inflow and Outflow, bcnormal should provide these
-            if (isgn == 1)
+            if (x_isgn == 1)
               x_bc_type = 7; // Inflow
             else
               x_bc_type = 8; //Outflow
           }
-          compute_waves(i, j, k, idir, isgn, x_bc_type, problen.data(), bc_params.data(),
-            s_ext.data(), Tx.data(), Lx.data(), dpdx, dudx, dvdx, dwdx, drhodx, q, qaux);
+          x_bcMask(i, j, k) = x_bc_type;
+          if (test_keyword_y == 6) {
+            bcnormal(x, s_int.data(), y_bc_target.data(), 1, y_isgn, time, geom.data(), *lprobparm);
+            // TODO: Hard-coded Inflow and Outflow, bcnormal should provide these
+            if (y_isgn == 1)
+              y_bc_type = 7; // Inflow
+            else
+              y_bc_type = 8; //Outflow
+          }
+          y_bcMask(i, j, k) = y_bc_type;
+          if (test_keyword_x == 6) {
+            bcnormal(x, s_int.data(), z_bc_target.data(), 2, y_isgn, time, geom.data(), *lprobparm);
+            // TODO: Hard-coded Inflow and Outflow, bcnormal should provide these
+            if (z_isgn == 1)
+              z_bc_type = 7; // Inflow
+            else
+              z_bc_type = 8; //Outflow
+          }
+          z_bcMask(i, j, k) = z_bc_type;
+          compute_waves(i, j, k, 0, x_isgn, x_bc_type, problen.data(), bc_params.data(),
+            x_bc_target.data(), Tx.data(), Lx.data(), dpdx, dudx, dvdx, dwdx, drhodx, q, qaux);
+          compute_waves(i, j, k, 1, y_isgn, y_bc_type, problen.data(), bc_params.data(),
+            y_bc_target.data(), Ty.data(), Ly.data(), dpdy, dudy, dvdy, dwdy, drhody, q, qaux);
+          compute_waves(i, j, k, 2, z_isgn, z_bc_type, problen.data(), bc_params.data(),
+            z_bc_target.data(), Tz.data(), Lz.data(), dpdz, dudz, dvdz, dwdz, drhodz, q, qaux);
+          update_ghost_cells(i, j, k, x_bc_type, 0, x_isgn, dx[0], domlo, domhi, Lx.data(), uin, q, qaux);
+          update_ghost_cells(i, j, k, y_bc_type, 1, y_isgn, dx[1], domlo, domhi, Ly.data(), uin, q, qaux);
+          update_ghost_cells(i, j, k, z_bc_type, 2, z_isgn, dx[2], domlo, domhi, Lz.data(), uin, q, qaux);
         }
        });
     }
@@ -747,628 +774,6 @@ PeleC::impose_NSCBC(
 //       }
 //     }
 //   }
-// }
-
-// //-------------------------------------------------
-// // Generic routines below
-// //-------------------------------------------------
-
-// void
-// PeleC::tangential_derivative(
-//   int i,
-//   int j,
-//   int k,
-//   int idir,
-//   amrex::Real delta,
-//   amrex::Real dp,
-//   amrex::Real du,
-//   amrex::Real dv,
-//   amrex::Real dw,
-//   amrex::Real drho,
-//   const amrex::Array4<amrex::Real>& q,
-//   int q_l1,
-//   int q_l2,
-//   int q_l3,
-//   int q_h1,
-//   int q_h2,
-//   int q_h3)
-// {
-//   // use meth_params_module, only : QVAR, QPRES, QU, QV, QW, QRHO
-//   // implicit none
-//   // integer, intent(in) :: i,j,k,idir
-//   // integer, intent(in) :: q_l1, q_l2, q_l3, q_h1, q_h2, q_h3
-//   // amrex::Real, intent(in) :: delta
-//   // amrex::Real, intent(in) :: q(q_l1:q_h1,q_l2:q_h2,q_l3:q_h3,QVAR)
-//   // amrex::Real, intent(out) :: dp, du, dv, dw, drho
-
-//   // Warning, idir means the tangential direction, this is different from 2D
-//   // (sorry)
-//   if (idir == 1) {
-//     // 2nd order Central
-//     dp = (q(i + 1, j, k, QPRES) - q(i - 1, j, k, QPRES)) / (2.0 * delta);
-//     du = (q(i + 1, j, k, QU) - q(i - 1, j, k, QU)) / (2.0 * delta);
-//     dv = (q(i + 1, j, k, QV) - q(i - 1, j, k, QV)) / (2.0 * delta);
-//     dw = (q(i + 1, j, k, QW) - q(i - 1, j, k, QW)) / (2.0 * delta);
-//     drho = (q(i + 1, j, k, QRHO) - q(i - 1, j, k, QRHO)) / (2.0 * delta);
-//   } else if (idir == 2) {
-//     // 2nd order Central
-//     dp = (q(i, j + 1, k, QPRES) - q(i, j - 1, k, QPRES)) / (2.0 * delta);
-//     du = (q(i, j + 1, k, QU) - q(i, j - 1, k, QU)) / (2.0 * delta);
-//     dv = (q(i, j + 1, k, QV) - q(i, j - 1, k, QV)) / (2.0 * delta);
-//     dw = (q(i, j + 1, k, QW) - q(i, j - 1, k, QW)) / (2.0 * delta);
-//     drho = (q(i, j + 1, k, QRHO) - q(i, j - 1, k, QRHO)) / (2.0 * delta);
-//   } else if (idir == 3) {
-//     // 2nd order Central
-//     dp = (q(i, j, k + 1, QPRES) - q(i, j, k - 1, QPRES)) / (2.0 * delta);
-//     du = (q(i, j, k + 1, QU) - q(i, j, k - 1, QU)) / (2.0 * delta);
-//     dv = (q(i, j, k + 1, QV) - q(i, j, k - 1, QV)) / (2.0 * delta);
-//     dw = (q(i, j, k + 1, QW) - q(i, j, k - 1, QW)) / (2.0 * delta);
-//     drho = (q(i, j, k + 1, QRHO) - q(i, j, k - 1, QRHO)) / (2.0 * delta);
-//   } else {
-//     amrex::Abort("Problem of idir in impose_NSCBC_3d:tangential_derivative");
-//   }
-// }
-
-// void
-// PeleC::update_ghost_cells(
-//   int i,
-//   int j,
-//   int k,
-//   int bc_type,
-//   int idir,
-//   int isign,
-//   amrex::Real delta,
-//   int domlo[3],
-//   int domhi[3],
-//   amrex::Real L1,
-//   amrex::Real L2,
-//   amrex::Real L3,
-//   amrex::Real L4,
-//   amrex::Real L5,
-//   const amrex::Array4<amrex::Real>& uin,
-//   int uin_l1,
-//   int uin_l2,
-//   int uin_l3,
-//   int uin_h1,
-//   int uin_h2,
-//   int uin_h3,
-//   const amrex::Array4<amrex::Real>& q,
-//   int q_l1,
-//   int q_l2,
-//   int q_l3,
-//   int q_h1,
-//   int q_h2,
-//   int q_h3,
-//   const amrex::Array4<amrex::Real>& qaux,
-//   int qa_l1,
-//   int qa_l2,
-//   int qa_l3,
-//   int qa_h1,
-//   int qa_h2,
-//   int qa_h3)
-// {
-//   // use eos_module
-//   // use amrex_constants_module, only : ONE
-//   // use fuego_chemistry, only : NUM_SPECIES
-//   // use prob_params_module, only : SlipWall, NoSlipWall
-
-//   // integer, intent(in) :: i,j,k,idir,isign,bc_type
-//   // integer, intent(in) :: domlo(3), domhi(3)
-//   // integer, intent(in) :: q_l1, q_l2, q_l3, q_h1, q_h2, q_h3
-//   // integer, intent(in) :: qa_l1, qa_l2, qa_l3, qa_h1, qa_h2, qa_h3
-//   // integer, intent(in) :: uin_l1, uin_l2, uin_l3, uin_h1, uin_h2, uin_h3
-//   // amrex::Real, intent(in) :: L1, L2, L3, L4, L5
-//   // amrex::Real, intent(in) :: delta
-//   // amrex::Real, intent(inout) :: q(q_l1:q_h1,q_l2:q_h2,q_l3:q_h3,QVAR)
-//   // amrex::Real, intent(inout) ::
-//   // qaux(qa_l1:qa_h1,qa_l2:qa_h2,qa_l3:qa_h3,NQAUX) amrex::Real,
-//   // intent(inout) :: uin(uin_l1:uin_h1,uin_l2:uin_h2,uin_l3:uin_h3,NVAR)
-
-//   int idx_gc1, idx_gc2, idx_gc3, idx_gc4, idx_int1, idx_int2, idx_int3;
-//   int idx_start, idx_end, hop, n, local_index;
-//   amrex::Real drho, du, dv, dw, dp, wall_sign;
-//   const amrex::Real small = 1.e-8;
-
-//   // if ((idir == 1) || (idir == 2) || (idir == 3)) then
-//   //  do nothing
-//   // else
-//   //  bl_abort("Problem of idir in impose_NSCBC_3d:update_ghost_cells")
-//   // end if
-
-//   // if ((isign == 1) || (isign == -1)) then
-//   //  do nothing
-//   // else
-//   //  bl_abort("Problem of isign in impose_NSCBC_3d:update_ghost_cells")
-//   // end if
-
-//   // Compute new spatial derivative
-//   if (idir == 1) {
-//     local_index = i;
-//     drho = (L2 + 0.5 * (L1 + L5)) / (qaux(i, j, k, QC) * qaux(i, j, k, QC));
-//     du = (L5 - L1) / (2.0 * qaux(i, j, k, QC) * q(i, j, k, QRHO));
-//     dv = L3;
-//     dw = L4;
-//     dp = 0.5 * (L1 + L5);
-//   } else if (idir == 2) {
-//     local_index = j;
-//     drho = (L3 + 0.5 * (L1 + L5)) / (qaux(i, j, k, QC) * qaux(i, j, k, QC));
-//     du = L2;
-//     dv = (L5 - L1) / (2.0 * qaux(i, j, k, QC) * q(i, j, k, QRHO));
-//     dw = L4;
-//     dp = 0.5 * (L1 + L5);
-//   } else if (idir == 3) {
-//     local_index = k;
-//     drho = (L4 + 0.5 * (L1 + L5)) / (qaux(i, j, k, QC) * qaux(i, j, k, QC));
-//     du = L2;
-//     dv = L3;
-//     dw = (L5 - L1) / (2.0 * qaux(i, j, k, QC) * q(i, j, k, QRHO));
-//     dp = 0.5 * (L1 + L5);
-//   }
-
-//   if (isign == 1) {
-//     idx_gc1 = local_index - 1;
-//     idx_gc2 = local_index - 2;
-//     idx_gc3 = local_index - 3;
-//     idx_gc4 = local_index - 4;
-//     idx_int1 = local_index + 1;
-//     idx_int2 = local_index + 2;
-//     idx_int3 = local_index + 3;
-//     idx_start = domlo[idir] - 1;
-//     idx_end = domlo[idir] - 4;
-//   } else if (isign == -1) {
-//     idx_gc1 = local_index + 1;
-//     idx_gc2 = local_index + 2;
-//     idx_gc3 = local_index + 3;
-//     idx_gc4 = local_index + 4;
-//     idx_int1 = local_index - 1;
-//     idx_int2 = local_index - 2;
-//     idx_int3 = local_index - 3;
-//     idx_start = domhi[idir] + 1;
-//     idx_end = domhi[idir] + 4;
-//   }
-
-//   if (idir == 1) {
-//     // Update ghost cells
-//     // 2nd order
-//     q(idx_gc1, j, k, QU) = q(idx_int1, j, k, QU) - 2.0 * delta * du * isign;
-//     q(idx_gc1, j, k, QV) = q(idx_int1, j, k, QV) - 2.0 * delta * dv * isign;
-//     q(idx_gc1, j, k, QW) = q(idx_int1, j, k, QW) - 2.0 * delta * dw * isign;
-//     q(idx_gc1, j, k, QRHO) =
-//       q(idx_int1, j, k, QRHO) - 2.0 * delta * drho * isign;
-//     q(idx_gc1, j, k, QPRES) =
-//       q(idx_int1, j, k, QPRES) - 2.0 * delta * dp * isign;
-
-//     q(idx_gc2, j, k, QU) = -2.0 * q(idx_int1, j, k, QU) - 3.0 * q(i, j, k, QU) +
-//                            6.0 * q(idx_gc1, j, k, QU) +
-//                            6.0 * delta * du * isign;
-//     q(idx_gc2, j, k, QV) = -2.0 * q(idx_int1, j, k, QV) - 3.0 * q(i, j, k, QV) +
-//                            6.0 * q(idx_gc1, j, k, QV) +
-//                            6.0 * delta * dv * isign;
-//     q(idx_gc2, j, k, QW) = -2.0 * q(idx_int1, j, k, QW) - 3.0 * q(i, j, k, QW) +
-//                            6.0 * q(idx_gc1, j, k, QW) +
-//                            6.0 * delta * dw * isign;
-//     q(idx_gc2, j, k, QRHO) =
-//       -2.0 * q(idx_int1, j, k, QRHO) - 3.0 * q(i, j, k, QRHO) +
-//       6.0 * q(idx_gc1, j, k, QRHO) + 6.0 * delta * drho * isign;
-//     q(idx_gc2, j, k, QPRES) =
-//       -2.0 * q(idx_int1, j, k, QPRES) - 3.0 * q(i, j, k, QPRES) +
-//       6.0 * q(idx_gc1, j, k, QPRES) + 6.0 * delta * dp * isign;
-
-//     q(idx_gc3, j, k, QU) = 3.0 * q(idx_int1, j, k, QU) + 10.0 * q(i, j, k, QU) -
-//                            18.0 * q(idx_gc1, j, k, QU) +
-//                            6.0 * q(idx_gc2, j, k, QU) -
-//                            12.0 * delta * du * isign;
-//     q(idx_gc3, j, k, QV) = 3.0 * q(idx_int1, j, k, QV) + 10.0 * q(i, j, k, QV) -
-//                            18.0 * q(idx_gc1, j, k, QV) +
-//                            6.0 * q(idx_gc2, j, k, QV) -
-//                            12.0 * delta * dv * isign;
-//     q(idx_gc3, j, k, QW) = 3.0 * q(idx_int1, j, k, QW) + 10.0 * q(i, j, k, QW) -
-//                            18.0 * q(idx_gc1, j, k, QW) +
-//                            6.0 * q(idx_gc2, j, k, QW) -
-//                            12.0 * delta * dw * isign;
-//     q(idx_gc3, j, k, QRHO) =
-//       3.0 * q(idx_int1, j, k, QRHO) + 10.0 * q(i, j, k, QRHO) -
-//       18.0 * q(idx_gc1, j, k, QRHO) + 6.0 * q(idx_gc2, j, k, QRHO) -
-//       12.0 * delta * drho * isign;
-//     q(idx_gc3, j, k, QPRES) =
-//       3.0 * q(idx_int1, j, k, QPRES) + 10.0 * q(i, j, k, QPRES) -
-//       18.0 * q(idx_gc1, j, k, QPRES) + 6.0 * q(idx_gc2, j, k, QPRES) -
-//       12.0 * delta * dp * isign;
-
-//     q(idx_gc4, j, k, QU) =
-//       -2.0 * q(idx_int1, j, k, QU) - 13.0 * q(i, j, k, QU) +
-//       24.0 * q(idx_gc1, j, k, QU) - 12.0 * q(idx_gc2, j, k, QU) +
-//       4.0 * q(idx_gc3, j, k, QU) + 12.0 * delta * du * isign;
-//     q(idx_gc4, j, k, QV) =
-//       -2.0 * q(idx_int1, j, k, QV) - 13.0 * q(i, j, k, QV) +
-//       24.0 * q(idx_gc1, j, k, QV) - 12.0 * q(idx_gc2, j, k, QV) +
-//       4.0 * q(idx_gc3, j, k, QV) + 12.0 * delta * dv * isign;
-//     q(idx_gc4, j, k, QW) =
-//       -2.0 * q(idx_int1, j, k, QW) - 13.0 * q(i, j, k, QW) +
-//       24.0 * q(idx_gc1, j, k, QW) - 12.0 * q(idx_gc2, j, k, QW) +
-//       4.0 * q(idx_gc3, j, k, QW) + 12.0 * delta * dw * isign;
-//     q(idx_gc4, j, k, QRHO) =
-//       -2.0 * q(idx_int1, j, k, QRHO) - 13.0 * q(i, j, k, QRHO) +
-//       24.0 * q(idx_gc1, j, k, QRHO) - 12.0 * q(idx_gc2, j, k, QRHO) +
-//       4.0 * q(idx_gc3, j, k, QRHO) + 12.0 * delta * drho * isign;
-//     q(idx_gc4, j, k, QPRES) =
-//       -2.0 * q(idx_int1, j, k, QPRES) - 13.0 * q(i, j, k, QPRES) +
-//       24.0 * q(idx_gc1, j, k, QPRES) - 12.0 * q(idx_gc2, j, k, QPRES) +
-//       4.0 * q(idx_gc3, j, k, QPRES) + 12.0 * delta * dp * isign;
-
-//     if ((bc_type == NoSlipWall) || (bc_type == SlipWall)) {
-//       if (bc_type == NoSlipWall) {
-//         wall_sign = -1.0;
-//       } else if (bc_type == SlipWall) {
-//         wall_sign = 1.0;
-//       }
-
-//       q(idx_gc1, j, k, QU) = -q(i, j, k, QU);
-//       q(idx_gc2, j, k, QU) = -q(idx_int1, j, k, QU);
-//       q(idx_gc3, j, k, QU) = -q(idx_int2, j, k, QU);
-//       q(idx_gc4, j, k, QU) = -q(idx_int3, j, k, QU);
-
-//       q(idx_gc1, j, k, QV) = wall_sign * q(i, j, k, QV);
-//       q(idx_gc2, j, k, QV) = wall_sign * q(idx_int1, j, k, QV);
-//       q(idx_gc3, j, k, QV) = wall_sign * q(idx_int2, j, k, QV);
-//       q(idx_gc4, j, k, QV) = wall_sign * q(idx_int3, j, k, QV);
-
-//       q(idx_gc1, j, k, QW) = wall_sign * q(i, j, k, QW);
-//       q(idx_gc2, j, k, QW) = wall_sign * q(idx_int1, j, k, QW);
-//       q(idx_gc3, j, k, QW) = wall_sign * q(idx_int2, j, k, QW);
-//       q(idx_gc4, j, k, QW) = wall_sign * q(idx_int3, j, k, QW);
-
-//       q(idx_gc1, j, k, QRHO) = q(i, j, k, QRHO);
-//       q(idx_gc2, j, k, QRHO) = q(idx_int1, j, k, QRHO);
-//       q(idx_gc3, j, k, QRHO) = q(idx_int2, j, k, QRHO);
-//       q(idx_gc4, j, k, QRHO) = q(idx_int3, j, k, QRHO);
-
-//       q(idx_gc1, j, k, QPRES) = q(i, j, k, QPRES);
-//       q(idx_gc2, j, k, QPRES) = q(idx_int1, j, k, QPRES);
-//       q(idx_gc3, j, k, QPRES) = q(idx_int2, j, k, QPRES);
-//       q(idx_gc4, j, k, QPRES) = q(idx_int3, j, k, QPRES);
-//     }
-
-//     // Recompute missing values thanks to EOS
-//     for (int hop = idx_start; hop < idx_end; hop = hop - isign) {
-//       amrex::Real eos_state_p = q(hop, j, k, QPRES);
-//       amrex::Real eos_state_rho = q(hop, j, k, QRHO);
-//       amrex::Real eos_state_massfrac[NUM_SPECIES];
-//       for (int n = 0; n < NUM_SPECIES; n++) {
-//         eos_state_massfrac[n] = q(hop, j, k, QFS + n - 1);
-//       }
-//       amrex::Real eos_state_aux[NUM_AUX];
-//       for (int n = 0; n < NUM_AUX; n++) {
-//         eos_state_aux[n] = q(hop, j, k, QFX + n - 1);
-//       }
-
-//       amrex::Real eos_state_T;
-//       amrex::Real eos_state_e;
-//       // EOS::eos_rp(eos_state_p, eos_state_rho, eos_state_massfrac,
-//       // eos_state_T, eos_state_e);
-//       q(hop, j, k, QTEMP) = eos_state_T;
-//       q(hop, j, k, QREINT) = eos_state_e * q(hop, j, k, QRHO);
-//       q(hop, j, k, QGAME) = q(hop, j, k, QPRES) / q(hop, j, k, QREINT) + 1.0;
-
-//       // qaux(hop, j, k, QDPDR) = eos_state_dpdr_e;
-//       // qaux(hop, j, k, QDPDE) = eos_state_dpde;
-//       // qaux(hop, j, k, QGAMC) = eos_state_gam1;
-//       // qaux(hop, j, k, QC) = eos_state_cs;
-//       qaux(hop, j, k, QCSML) =
-//         amrex::max<amrex::Real>(small, small * qaux(hop, j, k, QC));
-
-//       // Here the update of the conservative variables uin seems to have only an
-//       // impact on the application of artificial viscosity difmag.
-//       uin(hop, j, k, URHO) = eos_state_rho;
-//       uin(hop, j, k, UMX) = q(hop, j, k, QU) * eos_state_rho;
-//       uin(hop, j, k, UMY) = q(hop, j, k, QV) * eos_state_rho;
-//       uin(hop, j, k, UMZ) = q(hop, j, k, QW) * eos_state_rho;
-//       uin(hop, j, k, UEINT) = eos_state_rho * eos_state_e;
-//       uin(hop, j, k, UEDEN) =
-//         eos_state_rho *
-//         (eos_state_e + 0.5 * (q(hop, j, k, QU) * q(hop, j, k, QU) +
-//                               q(hop, j, k, QV) * q(hop, j, k, QV) +
-//                               q(hop, j, k, QW) * q(hop, j, k, QW)));
-//       uin(hop, j, k, UTEMP) = eos_state_T;
-//       for (int n = 1; n < NUM_SPECIES; n++) {
-//         uin(hop, j, k, UFS + n - 1) = eos_state_rho * eos_state_massfrac[n];
-//       }
-//     }
-//   } else if (idir == 2) {
-//     // Update ghost cells
-//     // 2nd order
-//     q(i, idx_gc1, k, QU) = q(i, idx_int1, k, QU) - 2.0 * delta * du * isign;
-//     q(i, idx_gc1, k, QV) = q(i, idx_int1, k, QV) - 2.0 * delta * dv * isign;
-//     q(i, idx_gc1, k, QW) = q(i, idx_int1, k, QW) - 2.0 * delta * dw * isign;
-//     q(i, idx_gc1, k, QRHO) =
-//       q(i, idx_int1, k, QRHO) - 2.0 * delta * drho * isign;
-//     q(i, idx_gc1, k, QPRES) =
-//       q(i, idx_int1, k, QPRES) - 2.0 * delta * dp * isign;
-
-//     q(i, idx_gc2, k, QU) = -2.0 * q(i, idx_int1, k, QU) - 3.0 * q(i, j, k, QU) +
-//                            6.0 * q(i, idx_gc1, k, QU) +
-//                            6.0 * delta * du * isign;
-//     q(i, idx_gc2, k, QV) = -2.0 * q(i, idx_int1, k, QV) - 3.0 * q(i, j, k, QV) +
-//                            6.0 * q(i, idx_gc1, k, QV) +
-//                            6.0 * delta * dv * isign;
-//     q(i, idx_gc2, k, QW) = -2.0 * q(i, idx_int1, k, QW) - 3.0 * q(i, j, k, QW) +
-//                            6.0 * q(i, idx_gc1, k, QW) +
-//                            6.0 * delta * dw * isign;
-//     q(i, idx_gc2, k, QRHO) =
-//       -2.0 * q(i, idx_int1, k, QRHO) - 3.0 * q(i, j, k, QRHO) +
-//       6.0 * q(i, idx_gc1, k, QRHO) + 6.0 * delta * drho * isign;
-//     q(i, idx_gc2, k, QPRES) =
-//       -2.0 * q(i, idx_int1, k, QPRES) - 3.0 * q(i, j, k, QPRES) +
-//       6.0 * q(i, idx_gc1, k, QPRES) + 6.0 * delta * dp * isign;
-
-//     q(i, idx_gc3, k, QU) = 3.0 * q(i, idx_int1, k, QU) + 10.0 * q(i, j, k, QU) -
-//                            18.0 * q(i, idx_gc1, k, QU) +
-//                            6.0 * q(i, idx_gc2, k, QU) -
-//                            12.0 * delta * du * isign;
-//     q(i, idx_gc3, k, QV) = 3.0 * q(i, idx_int1, k, QV) + 10.0 * q(i, j, k, QV) -
-//                            18.0 * q(i, idx_gc1, k, QV) +
-//                            6.0 * q(i, idx_gc2, k, QV) -
-//                            12.0 * delta * dv * isign;
-//     q(i, idx_gc3, k, QW) = 3.0 * q(i, idx_int1, k, QW) + 10.0 * q(i, j, k, QW) -
-//                            18.0 * q(i, idx_gc1, k, QW) +
-//                            6.0 * q(i, idx_gc2, k, QW) -
-//                            12.0 * delta * dw * isign;
-//     q(i, idx_gc3, k, QRHO) =
-//       3.0 * q(i, idx_int1, k, QRHO) + 10.0 * q(i, j, k, QRHO) -
-//       18.0 * q(i, idx_gc1, k, QRHO) + 6.0 * q(i, idx_gc2, k, QRHO) -
-//       12.0 * delta * drho * isign;
-//     q(i, idx_gc3, k, QPRES) =
-//       3.0 * q(i, idx_int1, k, QPRES) + 10.0 * q(i, j, k, QPRES) -
-//       18.0 * q(i, idx_gc1, k, QPRES) + 6.0 * q(i, idx_gc2, k, QPRES) -
-//       12.0 * delta * dp * isign;
-
-//     q(i, idx_gc4, k, QU) =
-//       -2.0 * q(i, idx_int1, k, QU) - 13.0 * q(i, j, k, QU) +
-//       24.0 * q(i, idx_gc1, k, QU) - 12.0 * q(i, idx_gc2, k, QU) +
-//       4.0 * q(i, idx_gc3, k, QU) + 12.0 * delta * du * isign;
-//     q(i, idx_gc4, k, QV) =
-//       -2.0 * q(i, idx_int1, k, QV) - 13.0 * q(i, j, k, QV) +
-//       24.0 * q(i, idx_gc1, k, QV) - 12.0 * q(i, idx_gc2, k, QV) +
-//       4.0 * q(i, idx_gc3, k, QV) + 12.0 * delta * dv * isign;
-//     q(i, idx_gc4, k, QW) =
-//       -2.0 * q(i, idx_int1, k, QW) - 13.0 * q(i, j, k, QW) +
-//       24.0 * q(i, idx_gc1, k, QW) - 12.0 * q(i, idx_gc2, k, QW) +
-//       4.0 * q(i, idx_gc3, k, QW) + 12.0 * delta * dw * isign;
-//     q(i, idx_gc4, k, QRHO) =
-//       -2.0 * q(i, idx_int1, k, QRHO) - 13.0 * q(i, j, k, QRHO) +
-//       24.0 * q(i, idx_gc1, k, QRHO) - 12.0 * q(i, idx_gc2, k, QRHO) +
-//       4.0 * q(i, idx_gc3, k, QRHO) + 12.0 * delta * drho * isign;
-//     q(i, idx_gc4, k, QPRES) =
-//       -2.0 * q(i, idx_int1, k, QPRES) - 13.0 * q(i, j, k, QPRES) +
-//       24.0 * q(i, idx_gc1, k, QPRES) - 12.0 * q(i, idx_gc2, k, QPRES) +
-//       4.0 * q(i, idx_gc3, k, QPRES) + 12.0 * delta * dp * isign;
-
-//     if ((bc_type == NoSlipWall) || (bc_type == SlipWall)) {
-//       if (bc_type == NoSlipWall) {
-//         wall_sign = -1.0;
-//       } else if (bc_type == SlipWall) {
-//         wall_sign = 1.0;
-//       }
-
-//       q(i, idx_gc1, k, QU) = wall_sign * q(i, j, k, QU);
-//       q(i, idx_gc2, k, QU) = wall_sign * q(i, idx_int1, k, QU);
-//       q(i, idx_gc3, k, QU) = wall_sign * q(i, idx_int2, k, QU);
-//       q(i, idx_gc4, k, QU) = wall_sign * q(i, idx_int3, k, QU);
-
-//       q(i, idx_gc1, k, QV) = -q(i, j, k, QV);
-//       q(i, idx_gc2, k, QV) = -q(i, idx_int1, k, QV);
-//       q(i, idx_gc3, k, QV) = -q(i, idx_int2, k, QV);
-//       q(i, idx_gc4, k, QV) = -q(i, idx_int3, k, QV);
-
-//       q(i, idx_gc1, k, QW) = wall_sign * q(i, j, k, QW);
-//       q(i, idx_gc2, k, QW) = wall_sign * q(i, idx_int1, k, QW);
-//       q(i, idx_gc3, k, QW) = wall_sign * q(i, idx_int2, k, QW);
-//       q(i, idx_gc4, k, QW) = wall_sign * q(i, idx_int3, k, QW);
-
-//       q(i, idx_gc1, k, QRHO) = q(i, j, k, QRHO);
-//       q(i, idx_gc2, k, QRHO) = q(i, idx_int1, k, QRHO);
-//       q(i, idx_gc3, k, QRHO) = q(i, idx_int2, k, QRHO);
-//       q(i, idx_gc4, k, QRHO) = q(i, idx_int3, k, QRHO);
-
-//       q(i, idx_gc1, k, QPRES) = q(i, j, k, QPRES);
-//       q(i, idx_gc2, k, QPRES) = q(i, idx_int1, k, QPRES);
-//       q(i, idx_gc3, k, QPRES) = q(i, idx_int2, k, QPRES);
-//       q(i, idx_gc4, k, QPRES) = q(i, idx_int3, k, QPRES);
-//     }
-
-//     // Recompute missing values thanks to EOS
-//     for (int hop = idx_start; hop < idx_end; hop = hop - isign) {
-//       amrex::Real eos_state_p = q(i, hop, k, QPRES);
-//       amrex::Real eos_state_rho = q(i, hop, k, QRHO);
-//       amrex::Real eos_state_massfrac[NUM_SPECIES];
-//       amrex::Real eos_state_aux[NUM_AUX];
-//       for (int n = 0; n < NUM_SPECIES; n++) {
-//         eos_state_massfrac[n] = q(i, hop, k, QFS + NUM_SPECIES - 1);
-//       }
-//       for (int n = 0; n < NUM_AUX; n++) {
-//         eos_state_aux[n] = q(i, hop, k, QFX + NUM_AUX - 1);
-//       }
-
-//       amrex::Real eos_state_T;
-//       amrex::Real eos_state_e;
-//       // EOS::eos_rp(eos_state_p, eos_state_rho, eos_state_massfrac,
-//       // eos_state_T, eos_state_e);
-//       q(i, hop, k, QTEMP) = eos_state_T;
-//       q(i, hop, k, QREINT) = eos_state_e * q(i, hop, k, QRHO);
-//       q(i, hop, k, QGAME) = q(i, hop, k, QPRES) / q(i, hop, k, QREINT) + 1.0;
-
-//       // qaux(i, hop, k, QDPDR) = eos_state_dpdr_e;
-//       // qaux(i, hop, k, QDPDE) = eos_state_dpde;
-//       // qaux(i, hop, k, QGAMC) = eos_state_gam1;
-//       // qaux(i, hop, k, QC) = eos_state_cs;
-//       qaux(i, hop, k, QCSML) =
-//         amrex::max<amrex::Real>(small, small * qaux(i, hop, k, QC));
-
-//       // Here the update of the conservative variables uin seems to have only an
-//       // impact on the application of artificial viscosity difmag.
-//       uin(i, hop, k, URHO) = eos_state_rho;
-//       uin(i, hop, k, UMX) = q(i, hop, k, QU) * eos_state_rho;
-//       uin(i, hop, k, UMY) = q(i, hop, k, QV) * eos_state_rho;
-//       uin(i, hop, k, UMZ) = q(i, hop, k, QW) * eos_state_rho;
-//       uin(i, hop, k, UEINT) = eos_state_rho * eos_state_e;
-//       uin(i, hop, k, UEDEN) =
-//         eos_state_rho *
-//         (eos_state_e + 0.5 * (q(i, hop, k, QU) * q(i, hop, k, QU) +
-//                               q(i, hop, k, QV) * q(i, hop, k, QV) +
-//                               q(i, hop, k, QW) * q(i, hop, k, QW)));
-//       uin(i, hop, k, UTEMP) = eos_state_T;
-//       for (int n = 1; n < NUM_SPECIES; n++) {
-//         uin(i, hop, k, UFS + n - 1) = eos_state_rho * eos_state_massfrac[n];
-//       }
-//     }
-//   } else if (idir == 3) {
-//     // Update ghost cells
-//     // 2nd order
-//     q(i, j, idx_gc1, QU) = q(i, j, idx_int1, QU) - 2.0 * delta * du * isign;
-//     q(i, j, idx_gc1, QV) = q(i, j, idx_int1, QV) - 2.0 * delta * dv * isign;
-//     q(i, j, idx_gc1, QW) = q(i, j, idx_int1, QW) - 2.0 * delta * dw * isign;
-//     q(i, j, idx_gc1, QRHO) =
-//       q(i, j, idx_int1, QRHO) - 2.0 * delta * drho * isign;
-//     q(i, j, idx_gc1, QPRES) =
-//       q(i, j, idx_int1, QPRES) - 2.0 * delta * dp * isign;
-
-//     q(i, j, idx_gc2, QU) = -2.0 * q(i, j, idx_int1, QU) - 3.0 * q(i, j, k, QU) +
-//                            6.0 * q(i, j, idx_gc1, QU) +
-//                            6.0 * delta * du * isign;
-//     q(i, j, idx_gc2, QV) = -2.0 * q(i, j, idx_int1, QV) - 3.0 * q(i, j, k, QV) +
-//                            6.0 * q(i, j, idx_gc1, QV) +
-//                            6.0 * delta * dv * isign;
-//     q(i, j, idx_gc2, QW) = -2.0 * q(i, j, idx_int1, QW) - 3.0 * q(i, j, k, QW) +
-//                            6.0 * q(i, j, idx_gc1, QW) +
-//                            6.0 * delta * dw * isign;
-//     q(i, j, idx_gc2, QRHO) =
-//       -2.0 * q(i, j, idx_int1, QRHO) - 3.0 * q(i, j, k, QRHO) +
-//       6.0 * q(i, j, idx_gc1, QRHO) + 6.0 * delta * drho * isign;
-//     q(i, j, idx_gc2, QPRES) =
-//       -2.0 * q(i, j, idx_int1, QPRES) - 3.0 * q(i, j, k, QPRES) +
-//       6.0 * q(i, j, idx_gc1, QPRES) + 6.0 * delta * dp * isign;
-
-//     q(i, j, idx_gc3, QU) = 3.0 * q(i, j, idx_int1, QU) + 10.0 * q(i, j, k, QU) -
-//                            18.0 * q(i, j, idx_gc1, QU) +
-//                            6.0 * q(i, j, idx_gc2, QU) -
-//                            12.0 * delta * du * isign;
-//     q(i, j, idx_gc3, QV) = 3.0 * q(i, j, idx_int1, QV) + 10.0 * q(i, j, k, QV) -
-//                            18.0 * q(i, j, idx_gc1, QV) +
-//                            6.0 * q(i, j, idx_gc2, QV) -
-//                            12.0 * delta * dv * isign;
-//     q(i, j, idx_gc3, QW) = 3.0 * q(i, j, idx_int1, QW) + 10.0 * q(i, j, k, QW) -
-//                            18.0 * q(i, j, idx_gc1, QW) +
-//                            6.0 * q(i, j, idx_gc2, QW) -
-//                            12.0 * delta * dw * isign;
-//     q(i, j, idx_gc3, QRHO) =
-//       3.0 * q(i, j, idx_int1, QRHO) + 10.0 * q(i, j, k, QRHO) -
-//       18.0 * q(i, j, idx_gc1, QRHO) + 6.0 * q(i, j, idx_gc2, QRHO) -
-//       12.0 * delta * drho * isign;
-//     q(i, j, idx_gc3, QPRES) =
-//       3.0 * q(i, j, idx_int1, QPRES) + 10.0 * q(i, j, k, QPRES) -
-//       18.0 * q(i, j, idx_gc1, QPRES) + 6.0 * q(i, j, idx_gc2, QPRES) -
-//       12.0 * delta * dp * isign;
-
-//     q(i, j, idx_gc4, QU) =
-//       -2.0 * q(i, j, idx_int1, QU) - 13.0 * q(i, j, k, QU) +
-//       24.0 * q(i, j, idx_gc1, QU) - 12.0 * q(i, j, idx_gc2, QU) +
-//       4.0 * q(i, j, idx_gc3, QU) + 12.0 * delta * du * isign;
-//     q(i, j, idx_gc4, QV) =
-//       -2.0 * q(i, j, idx_int1, QV) - 13.0 * q(i, j, k, QV) +
-//       24.0 * q(i, j, idx_gc1, QV) - 12.0 * q(i, j, idx_gc2, QV) +
-//       4.0 * q(i, j, idx_gc3, QV) + 12.0 * delta * dv * isign;
-//     q(i, j, idx_gc4, QW) =
-//       -2.0 * q(i, j, idx_int1, QW) - 13.0 * q(i, j, k, QW) +
-//       24.0 * q(i, j, idx_gc1, QW) - 12.0 * q(i, j, idx_gc2, QW) +
-//       4.0 * q(i, j, idx_gc3, QW) + 12.0 * delta * dw * isign;
-//     q(i, j, idx_gc4, QRHO) =
-//       -2.0 * q(i, j, idx_int1, QRHO) - 13.0 * q(i, j, k, QRHO) +
-//       24.0 * q(i, j, idx_gc1, QRHO) - 12.0 * q(i, j, idx_gc2, QRHO) +
-//       4.0 * q(i, j, idx_gc3, QRHO) + 12.0 * delta * drho * isign;
-//     q(i, j, idx_gc4, QPRES) =
-//       -2.0 * q(i, j, idx_int1, QPRES) - 13.0 * q(i, j, k, QPRES) +
-//       24.0 * q(i, j, idx_gc1, QPRES) - 12.0 * q(i, j, idx_gc2, QPRES) +
-//       4.0 * q(i, j, idx_gc3, QPRES) + 12.0 * delta * dp * isign;
-
-//     if ((bc_type == NoSlipWall) || (bc_type == SlipWall)) {
-//       if (bc_type == NoSlipWall) {
-//         wall_sign = -1.0;
-//       } else if (bc_type == SlipWall) {
-//         wall_sign = 1.0;
-//       }
-
-//       q(i, j, idx_gc1, QU) = wall_sign * q(i, j, k, QU);
-//       q(i, j, idx_gc2, QU) = wall_sign * q(i, j, idx_int1, QU);
-//       q(i, j, idx_gc3, QU) = wall_sign * q(i, j, idx_int2, QU);
-//       q(i, j, idx_gc4, QU) = wall_sign * q(i, j, idx_int3, QU);
-
-//       q(i, j, idx_gc1, QV) = wall_sign * q(i, j, k, QV);
-//       q(i, j, idx_gc2, QV) = wall_sign * q(i, j, idx_int1, QV);
-//       q(i, j, idx_gc3, QV) = wall_sign * q(i, j, idx_int2, QV);
-//       q(i, j, idx_gc4, QV) = wall_sign * q(i, j, idx_int3, QV);
-
-//       q(i, j, idx_gc1, QW) = -q(i, j, k, QW);
-//       q(i, j, idx_gc2, QW) = -q(i, j, idx_int1, QW);
-//       q(i, j, idx_gc3, QW) = -q(i, j, idx_int2, QW);
-//       q(i, j, idx_gc4, QW) = -q(i, j, idx_int3, QW);
-
-//       q(i, j, idx_gc1, QRHO) = q(i, j, k, QRHO);
-//       q(i, j, idx_gc2, QRHO) = q(i, j, idx_int1, QRHO);
-//       q(i, j, idx_gc3, QRHO) = q(i, j, idx_int2, QRHO);
-//       q(i, j, idx_gc4, QRHO) = q(i, j, idx_int3, QRHO);
-
-//       q(i, j, idx_gc1, QPRES) = q(i, j, k, QPRES);
-//       q(i, j, idx_gc2, QPRES) = q(i, j, idx_int1, QPRES);
-//       q(i, j, idx_gc3, QPRES) = q(i, j, idx_int2, QPRES);
-//       q(i, j, idx_gc4, QPRES) = q(i, j, idx_int3, QPRES);
-//     }
-
-//     // Recompute missing values thanks to EOS
-//     for (int hop = idx_start; hop < idx_end; hop = hop - isign) {
-//       amrex::Real eos_state_p = q(i, j, hop, QPRES);
-//       amrex::Real eos_state_rho = q(i, j, hop, QRHO);
-//       amrex::Real eos_state_massfrac[NUM_SPECIES];
-//       for (int n = 0; n < NUM_SPECIES; n++) {
-//         eos_state_massfrac[n] = q(i, j, hop, QFS + NUM_SPECIES - 1);
-//       }
-//       amrex::Real eos_state_aux[NUM_AUX];
-//       for (int n = 0; n < NUM_SPECIES; n++) {
-//         eos_state_aux[n] = q(i, j, hop, QFX + NUM_AUX - 1);
-//       }
-
-//       amrex::Real eos_state_T;
-//       amrex::Real eos_state_e;
-//       // eos_rp(eos_state);
-//       q(i, j, hop, QTEMP) = eos_state_T;
-//       q(i, j, hop, QREINT) = eos_state_e * q(i, j, hop, QRHO);
-//       q(i, j, hop, QGAME) = q(i, j, hop, QPRES) / q(i, j, hop, QREINT) + 1.0;
-
-//       // qaux(i, j, hop, QDPDR) = eos_state_dpdr_e;
-//       // qaux(i, j, hop, QDPDE) = eos_state_dpde;
-//       // qaux(i, j, hop, QGAMC) = eos_state_gam1;
-//       // qaux(i, j, hop, QC) = eos_state_cs;
-//       qaux(i, j, hop, QCSML) =
-//         amrex::max<amrex::Real>(small, small * qaux(i, j, hop, QC));
-
-//       // Here the update of the conservative variables uin seems to have only an
-//       // impact on the application of artificial viscosity difmag.
-//       uin(i, j, hop, URHO) = eos_state_rho;
-//       uin(i, j, hop, UMX) = q(i, j, hop, QU) * eos_state_rho;
-//       uin(i, j, hop, UMY) = q(i, j, hop, QV) * eos_state_rho;
-//       uin(i, j, hop, UMZ) = q(i, j, hop, QW) * eos_state_rho;
-//       uin(i, j, hop, UEINT) = eos_state_rho * eos_state_e;
-//       uin(i, j, hop, UEDEN) =
-//         eos_state_rho *
-//         (eos_state_e + 0.5 * (q(i, j, hop, QU) * q(i, j, hop, QU) +
-//                               q(i, j, hop, QV) * q(i, j, hop, QV) +
-//                               q(i, j, hop, QW) * q(i, j, hop, QW)));
-//       uin(i, j, hop, UTEMP) = eos_state_T;
-//       for (int n = 1; n < NUM_SPECIES; n++) {
-//         uin(i, j, hop, UFS + n - 1) = eos_state_rho * eos_state_massfrac[n];
-//       }
-//     }
-//   }
-//   // destroy(eos_state);
 // }
 
 void
