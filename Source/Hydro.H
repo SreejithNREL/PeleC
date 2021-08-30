@@ -6,6 +6,7 @@
 #include "PelePhysics.H"
 #include "Utilities.H"
 #include "Godunov.H"
+#include "NSCBC.H"
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE

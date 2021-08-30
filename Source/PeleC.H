@@ -255,8 +255,34 @@ public:
   void construct_Snew(
     amrex::MultiFab& S_new, const amrex::MultiFab& S_old, amrex::Real dt);
 
+  void set_bc_mask(
+    const amrex::Box& bx,
+    const int nscbc_isAnyPerio,
+    AMREX_D_DECL(
+      const amrex::Array4<int>& x_bcMask,
+      const amrex::Array4<int>& y_bcMask,
+      const amrex::Array4<int>& z_bcMask),
+    AMREX_D_DECL(
+      const amrex::Box& x_bcMask_bx,
+      const amrex::Box& y_bcMask_bx,
+      const amrex::Box& z_bcMask_bx));
+
+  void impose_NSCBC(
+     const amrex::Box& bx,
+     const amrex::Array4<amrex::Real>& uin,
+     const amrex::Array4<amrex::Real>& q,
+     const amrex::Array4<amrex::Real>& qaux,
+     const amrex::Box& qbox,
+     AMREX_D_DECL(
+       const amrex::Array4<int>& x_bcMask,
+       const amrex::Array4<int>& y_bcMask,
+       const amrex::Array4<int>& z_bcMask),
+     const int nscbc_isAnyPerio,
+     const amrex::Real time,
+     const amrex::Real dt);
+
   void construct_hydro_source(
-    const amrex::MultiFab& S,
+    amrex::MultiFab& S,
     amrex::Real time,
     amrex::Real dt,
     int amr_iteration,
