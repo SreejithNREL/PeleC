@@ -58,15 +58,31 @@ PeleC::impose_NSCBC(
   const auto& bcs = PeleC::phys_bc;
   const ProbParmDevice* lprobparm = d_prob_parm_device;
 
-  // print*,"===== Inputs to impose_NSCBC() ===="
-  // print*,"x_bcMask",x_bcMask(x_bcMask_l1:x_bcMask_h1,x_bcMask_l2:x_bcMask_h2,x_bcMask_l3:x_bcMask_h3)
-  // print*,"y_bcMask",y_bcMask(y_bcMask_l1:y_bcMask_h1,y_bcMask_l2:y_bcMask_h2,y_bcMask_l3:y_bcMask_h3)
-  // print*,"z_bcMask",z_bcMask(z_bcMask_l1:z_bcMask_h1,z_bcMask_l2:z_bcMask_h2,z_bcMask_l3:z_bcMask_h3)
+  printf("===== Inputs to impose_NSCBC() ==== \n");
+  amrex::ParallelFor(bx,
+  [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    printf("x_bcMask = %i y_bcMask = %i z_bcMask = %i \n", x_bcMask(i, j, k), y_bcMask(i, j, k), z_bcMask(i, j, k) ); 
+  });
 
-  // print*,"q",q(q_l1:q_h1,q_l2:q_h2,q_l3:q_h3,QVAR)
-  // print*,"qaux",qaux(qa_l1:qa_h1,qa_l2:qa_h2,qa_l3:qa_h3,NQAUX)
-  // print*,"uin",uin(uin_l1:uin_h1,uin_l2:uin_h2,uin_l3:uin_h3,NVAR)
-  // print*,""
+  amrex::ParallelFor(bx,
+  [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    for(int n=0;n<NVAR;n++)
+    printf("q = %e \n", q(i, j, k, n)); 
+  });
+
+  amrex::ParallelFor(bx,
+  [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    for(int n=0;n<NVAR;n++)
+    printf("qaux = %e \n", qaux(i, j, k, n)); 
+  });
+
+  amrex::ParallelFor(bx,
+  [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    for(int n=0;n<NVAR;n++)
+    printf("uin = %e \n", uin(i, j, k, n)); 
+  });
+
+  printf("\n");
 
   // Note the BC indices are
   // 0: Interior (periodic)
@@ -790,6 +806,33 @@ PeleC::impose_NSCBC(
       }
     }
   }
+
+  printf("===== OUTPUTS  ==== \n");
+  amrex::ParallelFor(bx,
+  [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    printf("x_bcMask = %i y_bcMask = %i z_bcMask = %i \n", x_bcMask(i, j, k), y_bcMask(i, j, k), z_bcMask(i, j, k) ); 
+  });
+
+  amrex::ParallelFor(bx,
+  [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    for(int n=0;n<NVAR;n++)
+    printf("q = %e \n", q(i, j, k, n)); 
+  });
+
+  amrex::ParallelFor(bx,
+  [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    for(int n=0;n<NVAR;n++)
+    printf("qaux = %e \n", qaux(i, j, k, n)); 
+  });
+
+  amrex::ParallelFor(bx,
+  [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    for(int n=0;n<NVAR;n++)
+    printf("uin = %e \n", uin(i, j, k, n)); 
+  });
+
+  printf("\n");
+
 }
 
 void
