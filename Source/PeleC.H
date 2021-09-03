@@ -460,7 +460,7 @@ public:
   void computeTemp(amrex::MultiFab& State, int ng);
 
   void getMOLSrcTerm(
-    const amrex::MultiFab& S,
+    amrex::MultiFab& S,
     amrex::MultiFab& MOLSrcTerm,
     amrex::Real time,
     amrex::Real dt,

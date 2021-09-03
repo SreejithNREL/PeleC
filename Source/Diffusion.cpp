@@ -2,9 +2,9 @@
 
 void
 PeleC::getMOLSrcTerm(
-  const amrex::MultiFab& S,
+  amrex::MultiFab& S,
   amrex::MultiFab& MOLSrcTerm,
-  amrex::Real /*time*/,
+  amrex::Real time,
   amrex::Real dt,
   amrex::Real flux_factor)
 {
@@ -115,6 +115,13 @@ PeleC::getMOLSrcTerm(
     //   flag_nscbc_perio[dir] =
     //     (amrex::DefaultGeometry().isPeriodic(dir)) ? 1 : 0;
     // }
+    amrex::IArrayBox bcMask[AMREX_SPACEDIM];
+    int flag_nscbc_isAnyPerio = (geom.isAnyPeriodic()) ? 1 : 0;
+    int flag_nscbc_perio[AMREX_SPACEDIM] = {0}; // For 3D, we will know which corners have a periodicity
+    for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
+     flag_nscbc_perio[dir] =
+       (amrex::DefaultGeometry().isPeriodic(dir)) ? 1 : 0;
+    }
     // const int* domain_lo = geom.Domain().loVect();
     // const int* domain_hi = geom.Domain().hiVect();
 
@@ -124,6 +131,8 @@ PeleC::getMOLSrcTerm(
       int ng = S.nGrow();
       const amrex::Box gbox = amrex::grow(vbox, ng);
       const amrex::Box cbox = amrex::grow(vbox, ng - 1);
+      const amrex::Box& fbx = amrex::grow(vbox, nGrowF);
+      const amrex::Box& qbx = amrex::grow(vbox, numGrow() + nGrowF);
       auto const& MOLSrc = MOLSrcTerm.array(mfi);
 
       amrex::Real wt = amrex::ParallelDescriptor::second();
@@ -210,6 +219,31 @@ PeleC::getMOLSrcTerm(
                            &time, dx, &dt);
             }
       */
+
+        // Allocate fabs for bcMask. Note that we grow in the opposite direction
+        // because the Riemann solver wants a face value in a ghost-cell
+        for (int dir = 0; dir < AMREX_SPACEDIM ; dir++)  {
+          const amrex::Box& bxtmp = amrex::surroundingNodes(fbx,dir);
+          amrex::Box TestBox(bxtmp);
+          for(int d=0; d<AMREX_SPACEDIM; ++d) {
+            if (dir!=d) TestBox.grow(d,1);
+          }
+          bcMask[dir].resize(TestBox,1);
+          bcMask[dir].setVal(0);
+        }
+
+        // Becase bcMask is read in the Riemann solver in any case,
+        // here we put physbc values in the appropriate faces for the
+        set_bc_mask(vbox, flag_nscbc_isAnyPerio,
+                    AMREX_D_DECL(bcMask[0].array(), bcMask[1].array(), bcMask[2].array()),
+                    AMREX_D_DECL(bcMask[0].box(), bcMask[1].box(), bcMask[2].box()));
+
+        if (nscbc_adv == 1) {
+          impose_NSCBC(vbox, sar, qar, qauxar, qbx,
+                       AMREX_D_DECL(bcMask[0].array(), bcMask[1].array(), bcMask[2].array()),
+                       flag_nscbc_isAnyPerio, time, dt);
+        }
+
       // Compute transport coefficients, coincident with Q
       auto const& coe_cc = coeff_cc.array();
       {
