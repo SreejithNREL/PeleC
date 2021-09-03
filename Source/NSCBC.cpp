@@ -127,6 +127,15 @@ PeleC::impose_NSCBC(
             test_keyword_y = bcs.lo(1);
             y_idx_Mask = j;
           }
+          if (k == domhi[2]) {
+            z_isgn = -1;
+            test_keyword_z = bcs.hi(2);
+            z_idx_Mask = k + 1;
+          } else {
+            z_isgn = 1;
+            test_keyword_z = bcs.lo(2);
+            z_idx_Mask = k;
+          }
           // Normal derivative along x
           amrex::Real dpdx, dudx, dvdx, dwdx, drhodx;
           normal_derivative(i, j, k, 0, x_isgn, dx[0], dpdx, dudx, dvdx, dwdx, drhodx, q);
@@ -461,7 +470,7 @@ PeleC::impose_NSCBC(
 
         amrex::Real dpdx, dudx, dvdx, dwdx, drhodx;
         // Normal derivative along x
-        normal_derivative(i, j, k, 0, 1, dx[0], dpdx, dudx, dvdx, dwdx, drhodx, q);
+        normal_derivative(i, j, k, 0, -1, dx[0], dpdx, dudx, dvdx, dwdx, drhodx, q);
         
         amrex::Real dpdy, dudy, dvdy, dwdy, drhody;
         // Tangential derivative along y
