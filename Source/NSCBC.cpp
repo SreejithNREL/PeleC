@@ -57,6 +57,17 @@ PeleC::impose_NSCBC(
     {prob_hi[0] - prob_lo[0], prob_hi[1] - prob_lo[1], prob_hi[2] - prob_lo[2]};
   const auto& bcs = PeleC::phys_bc;
   const ProbParmDevice* lprobparm = d_prob_parm_device;
+
+  // print*,"===== Inputs to impose_NSCBC() ===="
+  // print*,"x_bcMask",x_bcMask(x_bcMask_l1:x_bcMask_h1,x_bcMask_l2:x_bcMask_h2,x_bcMask_l3:x_bcMask_h3)
+  // print*,"y_bcMask",y_bcMask(y_bcMask_l1:y_bcMask_h1,y_bcMask_l2:y_bcMask_h2,y_bcMask_l3:y_bcMask_h3)
+  // print*,"z_bcMask",z_bcMask(z_bcMask_l1:z_bcMask_h1,z_bcMask_l2:z_bcMask_h2,z_bcMask_l3:z_bcMask_h3)
+
+  // print*,"q",q(q_l1:q_h1,q_l2:q_h2,q_l3:q_h3,QVAR)
+  // print*,"qaux",qaux(qa_l1:qa_h1,qa_l2:qa_h2,qa_l3:qa_h3,NQAUX)
+  // print*,"uin",uin(uin_l1:uin_h1,uin_l2:uin_h2,uin_l3:uin_h3,NVAR)
+  // print*,""
+
   // Note the BC indices are
   // 0: Interior (periodic)
   // 1: Hard
@@ -187,7 +198,7 @@ PeleC::impose_NSCBC(
        });
     }
   }
-}
+// }
 //     if (
 //       ((q_hi[0] > domhi[0]) || (q_lo[0] < domlo[0])) &&
 //       ((q_hi[1] > domhi[1]) || (q_lo[1] < domlo[1])) &&
@@ -230,8 +241,8 @@ PeleC::impose_NSCBC(
 //       }
 
 //       x = (static_cast<amrex::Real>(i) + 0.5) * dx;
-//       y = (static_cast<amrex::Real>(j) + 0.5) * dy;
-//       z = (static_cast<amrex::Real>(k) + 0.5) * dz;
+//       y = (static_cast<amrex::Real>(j) + 0.5) * dx[1];
+//       z = (static_cast<amrex::Real>(k) + 0.5) * dx[2];
 
 //       // Normal derivative along x
 //       normal_derivative(
@@ -240,12 +251,12 @@ PeleC::impose_NSCBC(
 
 //       // Normal derivative along y
 //       normal_derivative(
-//         i, j, k, 2, y_isign, dy, dpdy, dudy, dvdy, dwdy, drhody, q, q_l1, q_l2,
+//         i, j, k, 2, y_isign, dx[1], dpdy, dudy, dvdy, dwdy, drhody, q, q_l1, q_l2,
 //         q_l3, q_h1, q_h2, q_h3);
 
 //       // Normal derivative along z
 //       normal_derivative(
-//         i, j, k, 3, z_isign, dz, dpdz, dudz, dvdz, dwdz, drhodz, q, q_l1, q_l2,
+//         i, j, k, 3, z_isign, dx[2], dpdz, dudz, dvdz, dwdz, drhodz, q, q_l1, q_l2,
 //         q_l3, q_h1, q_h2, q_h3);
 
 //       // Compute transverse terms for X
@@ -323,458 +334,463 @@ PeleC::impose_NSCBC(
 
 //       // Recomputing ghost-cells values with the LODI waves along Y
 //       update_ghost_cells(
-//         i, j, k, y_bc_type, 2, y_isign, dy, domlo, domhi, M1, M2, M3, M4, M5,
+//         i, j, k, y_bc_type, 2, y_isign, dx[1], domlo, domhi, M1, M2, M3, M4, M5,
 //         uin, uin_l1, uin_l2, uin_l3, uin_h1, uin_h2, uin_h3, q, q_l1, q_l2,
 //         q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1, qa_h2, qa_h3);
 
 //       // Recomputing ghost-cells values with the LODI waves along Y
 //       update_ghost_cells(
-//         i, j, k, z_bc_type, 3, z_isign, dz, domlo, domhi, N1, N2, N3, N4, N5,
+//         i, j, k, z_bc_type, 3, z_isign, dx[2], domlo, domhi, N1, N2, N3, N4, N5,
 //         uin, uin_l1, uin_l2, uin_l3, uin_h1, uin_h2, uin_h3, q, q_l1, q_l2,
 //         q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1, qa_h2, qa_h3);
 //     }
 //   }
-//   //--------------------------------------------------------------------------
-//   // lower X
-//   //--------------------------------------------------------------------------
+  //--------------------------------------------------------------------------
+  // lower X
+  //--------------------------------------------------------------------------
 
-//   if ((q_lo[0] < domlo[0]) && (PeleC::phys_bc.lo()[0] == UserBC)) {
-//     i = domlo[0];
-//     x = (static_cast<amrex::Real>(i) + 0.5) * dx;
-//     for (j = q_lo[1] + 1; j < q_hi[1] - 1; j++) {
-//       y = (static_cast<amrex::Real>(j) + 0.5) * dy;
-//       if (flag_nscbc_isAnyPerio == 0) {
-//         if ((j == domlo[1]) || (j == domhi[1])) {
-//           continue; // Doing that to avoid ghost cells already filled by corners
-//         }
-//       }
-//       for (k = q_lo[2] + 1; k < q_hi[2] - 1; k++) {
-//         z = (static_cast<amrex::Real>(k) + 0.5) * dz;
-//         if (flag_nscbc_isAnyPerio == 0) {
-//           if ((k == domlo[2]) || (k == domhi[2])) {
-//             continue; // Doing that to avoid ghost cells already filled by
-//                       // corners
-//           }
-//         }
-//         // Normal derivative along x
-//         normal_derivative(
-//           i, j, k, 1, 1, dx, dpdx, dudx, dvdx, dwdx, drhodx, q, q_l1, q_l2,
-//           q_l3, q_h1, q_h2, q_h3);
+  if ((q_lo[0] < domlo[0]) && (PeleC::phys_bc.lo()[0] == UserBC)) {
+    int i = domlo[0];
+    amrex::Real  x = (static_cast<amrex::Real>(i) + 0.5) * dx[0];
+    for (int j = q_lo[1] + 1; j < q_hi[1] - 1; j++) {
+      amrex::Real y = (static_cast<amrex::Real>(j) + 0.5) * dx[1];
+      if (nscbc_isAnyPerio == 0) {
+        if ((j == domlo[1]) || (j == domhi[1])) {
+          continue; // Doing that to avoid ghost cells already filled by corners
+        }
+      }
+      for (int k = q_lo[2] + 1; k < q_hi[2] - 1; k++) {
+        amrex::Real z = (static_cast<amrex::Real>(k) + 0.5) * dx[2];
+        if (nscbc_isAnyPerio == 0) {
+          if ((k == domlo[2]) || (k == domhi[2])) {
+            continue; // Doing that to avoid ghost cells already filled by
+                      // corners
+          }
+        }
+        const amrex::Real x_array[AMREX_SPACEDIM] = {AMREX_D_DECL(x,y,z)};
 
-//         // Tangential derivative along y
-//         tangential_derivative(
-//           i, j, k, 2, dy, dpdy, dudy, dvdy, dwdy, drhody, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3);
+        amrex::Real dpdx, dudx, dvdx, dwdx, drhodx;
+        // Normal derivative along x
+        normal_derivative(i, j, k, 0, 1, dx[0], dpdx, dudx, dvdx, dwdx, drhodx, q);
 
-//         // Tangential derivative along z
-//         tangential_derivative(
-//           i, j, k, 3, dz, dpdz, dudz, dvdz, dwdz, drhodz, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3);
+        amrex::Real dpdy, dudy, dvdy, dwdy, drhody;
+        // Tangential derivative along y
+        tangential_derivative(i, j, k, 1, dx[1], dpdy, dudy, dvdy, dwdy, drhody, q);
 
-//         // Compute transverse terms
-//         compute_transverse_terms(
-//           i, j, k, 1, T1_X, T2_X, T3_X, T4_X, T5_X, dpdx, dudx, dvdx, dwdx,
-//           drhodx, dpdy, dudy, dvdy, dwdy, drhody, dpdz, dudz, dvdz, dwdz,
-//           drhodz, q, q_l1, q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2,
-//           qa_l3, qa_h1, qa_h2, qa_h3);
+        amrex::Real dpdz, dudz, dvdz, dwdz, drhodz;
+        // Tangential derivative along z
+        tangential_derivative(i, j, k, 2, dx[2], dpdz, dudz, dvdz, dwdz, drhodz, q);
 
-//         // Calling user target BC values
-//         // bcnormal([x,y,z],U_dummy,U_ext,1,1,time,bc_type,bc_params,bc_target);
+        amrex::GpuArray<amrex::Real, 5> Tx = {{0.0}};
+        // Compute transverse terms
+        compute_transverse_terms(
+          i, j, k, 0, Tx.data(), dpdx, dudx, dvdx, dwdx,
+          drhodx, dpdy, dudy, dvdy, dwdy, drhody, dpdz, dudz, dvdz, dwdz,
+          drhodz, q, qaux);
 
-//         // Filling bcMask with specific user defined BC type
-//         if (
-//           (j < q_lo[1] + 3) || (j > q_hi[1] - 3) || (k < q_lo[2] + 3) ||
-//           (k > q_hi[2] - 3)) {
-//           // do nothing.
-//           // There is just 1 ghost-cell with bcMask because of the Riemann
-//           // solver
-//         } else {
-//           x_bcMask(i, j, k) = bc_type;
-//         }
+        amrex::GpuArray<amrex::Real, NVAR> x_bc_target;
+        amrex::GpuArray<amrex::Real, NVAR> s_int;
 
-//         // Computing the LODI system waves
-//         compute_waves(
-//           i, j, k, 1, 1, bc_type, bc_params, bc_target, T1_X, T2_X, T3_X, T4_X,
-//           T5_X, L1, L2, L3, L4, L5, dpdx, dudx, dvdx, dwdx, drhodx, q, q_l1,
-//           q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1, qa_h2,
-//           qa_h3);
+        // Calling user target BC values
+        bcnormal(x_array, s_int.data(), x_bc_target.data(), 0, 1, time, geom.data(), *lprobparm);
+        int x_bc_type = 7; // Hard-coded inflow. This variable should be updated in bcnormal()
 
-//         // Recomputing ghost-cells values with the LODI waves
-//         update_ghost_cells(
-//           i, j, k, bc_type, 1, 1, dx, domlo, domhi, L1, L2, L3, L4, L5, uin,
-//           uin_l1, uin_l2, uin_l3, uin_h1, uin_h2, uin_h3, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1, qa_h2, qa_h3);
-//       }
-//     }
-//   }
+        // Filling bcMask with specific user defined BC type
+        if (
+          (j < q_lo[1] + 3) || (j > q_hi[1] - 3) || (k < q_lo[2] + 3) ||
+          (k > q_hi[2] - 3)) {
+          // do nothing.
+          // There is just 1 ghost-cell with bcMask because of the Riemann
+          // solver
+        } else {
+          x_bcMask(i, j, k) = x_bc_type;
+        }
 
-//   //--------------------------------------------------------------------------
-//   // upper X
-//   //--------------------------------------------------------------------------
+        // LODI system waves for X
+        amrex::GpuArray<amrex::Real, 5> Lx = {{0.0}};
 
-//   if ((q_hi[0] > domhi[0]) && (PeleC::phys_bc.hi()[0] == UserBC)) {
-//     i = domhi[0];
-//     x = (static_cast<amrex::Real>(i) + 0.5) * dx;
-//     for (j = q_lo[1] + 1; j < q_hi[1] - 1; j++) {
-//       y = (static_cast<amrex::Real>(j) + 0.5) * dy;
-//       if (flag_nscbc_isAnyPerio == 0) {
-//         if ((j == domlo[1]) || (j == domhi[1])) {
-//           continue; // Doing that to avoid ghost cells already filled by corners
-//         }
-//       }
-//       for (k = q_lo[2] + 1; k < q_hi[2] - 1; k++) {
-//         z = (static_cast<amrex::Real>(k) + 0.5) * dz;
-//         if (flag_nscbc_isAnyPerio == 0) {
-//           if ((k == domlo[2]) || (k == domhi[2])) {
-//             continue; // Doing that to avoid ghost cells already filled by
-//                       // corners
-//           }
-//         }
+        // Computing the LODI system waves
+        compute_waves(i, j, k, 0, 1, x_bc_type, problen.data(), bc_params.data(),
+            x_bc_target.data(), Tx.data(), Lx.data(), dpdx, dudx, dvdx, dwdx, drhodx, q, qaux);
 
-//         // Normal derivative along x
-//         normal_derivative(
-//           i, j, k, 1, -1, dx, dpdx, dudx, dvdx, dwdx, drhodx, q, q_l1, q_l2,
-//           q_l3, q_h1, q_h2, q_h3);
+        // Recomputing ghost-cells values with the LODI waves
+        update_ghost_cells(i, j, k, x_bc_type, 0, 1, dx[0], domlo, domhi, Lx.data(), uin, q, qaux);
+      }
+    }
+  }
 
-//         // Tangential derivative along y
-//         tangential_derivative(
-//           i, j, k, 2, dy, dpdy, dudy, dvdy, dwdy, drhody, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3);
+  //--------------------------------------------------------------------------
+  // upper X
+  //--------------------------------------------------------------------------
 
-//         // Tangential derivative along z
-//         tangential_derivative(
-//           i, j, k, 3, dz, dpdz, dudz, dvdz, dwdz, drhodz, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3);
+  if ((q_hi[0] > domhi[0]) && (PeleC::phys_bc.hi()[0] == UserBC)) {
+    int i = domhi[0];
+    amrex::Real  x = (static_cast<amrex::Real>(i) + 0.5) * dx[0];
+    for (int j = q_lo[1] + 1; j < q_hi[1] - 1; j++) {
+      amrex::Real  y = (static_cast<amrex::Real>(j) + 0.5) * dx[1];
+      if (nscbc_isAnyPerio == 0) {
+        if ((j == domlo[1]) || (j == domhi[1])) {
+          continue; // Doing that to avoid ghost cells already filled by corners
+        }
+      }
+      for (int k = q_lo[2] + 1; k < q_hi[2] - 1; k++) {
+        amrex::Real  z = (static_cast<amrex::Real>(k) + 0.5) * dx[2];
+        if (nscbc_isAnyPerio == 0) {
+          if ((k == domlo[2]) || (k == domhi[2])) {
+            continue; // Doing that to avoid ghost cells already filled by
+                      // corners
+          }
+        }
+        const amrex::Real x_array[AMREX_SPACEDIM] = {AMREX_D_DECL(x,y,z)};
 
-//         // Compute transverse terms
-//         compute_transverse_terms(
-//           i, j, k, 1, T1_X, T2_X, T3_X, T4_X, T5_X, dpdx, dudx, dvdx, dwdx,
-//           drhodx, dpdy, dudy, dvdy, dwdy, drhody, dpdz, dudz, dvdz, dwdz,
-//           drhodz, q, q_l1, q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2,
-//           qa_l3, qa_h1, qa_h2, qa_h3);
+        amrex::Real dpdx, dudx, dvdx, dwdx, drhodx;
+        // Normal derivative along x
+        normal_derivative(i, j, k, 0, 1, dx[0], dpdx, dudx, dvdx, dwdx, drhodx, q);
+        
+        amrex::Real dpdy, dudy, dvdy, dwdy, drhody;
+        // Tangential derivative along y
+        tangential_derivative(i, j, k, 1, dx[1], dpdy, dudy, dvdy, dwdy, drhody, q);
 
-//         // Filling bcMask with specific user defined BC type
-//         // bcnormal([x,y,z],U_dummy,U_ext,1,-1,time,bc_type,bc_params,bc_target);
-//         if (
-//           (j < q_lo[1] + 3) || (j > q_hi[1] - 3) || (k < q_lo[2] + 3) ||
-//           (k > q_hi[2] - 3)) {
-//           // do nothing
-//           // There is just 1 ghost-cell with bcMask because of the Riemann
-//           // solver
-//         } else {
-//           x_bcMask(i + 1, j, k) = bc_type;
-//         }
+        amrex::Real dpdz, dudz, dvdz, dwdz, drhodz;
+        // Tangential derivative along z
+        tangential_derivative(i, j, k, 2, dx[2], dpdz, dudz, dvdz, dwdz, drhodz, q);
 
-//         // Computing the LODI system waves
-//         compute_waves(
-//           i, j, k, 1, -1, bc_type, bc_params, bc_target, T1_X, T2_X, T3_X, T4_X,
-//           T5_X, L1, L2, L3, L4, L5, dpdx, dudx, dvdx, dwdx, drhodx, q, q_l1,
-//           q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1, qa_h2,
-//           qa_h3);
+        amrex::GpuArray<amrex::Real, 5> Tx = {{0.0}};
+        // Compute transverse terms
+        compute_transverse_terms(
+          i, j, k, 0, Tx.data(), dpdx, dudx, dvdx, dwdx,
+          drhodx, dpdy, dudy, dvdy, dwdy, drhody, dpdz, dudz, dvdz, dwdz,
+          drhodz, q, qaux);
 
-//         // Recomputing ghost-cells values with the LODI waves
-//         update_ghost_cells(
-//           i, j, k, bc_type, 1, -1, dx, domlo, domhi, L1, L2, L3, L4, L5, uin,
-//           uin_l1, uin_l2, uin_l3, uin_h1, uin_h2, uin_h3, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1, qa_h2, qa_h3);
-//       }
-//     }
-//   }
+        amrex::GpuArray<amrex::Real, NVAR> x_bc_target;
+        amrex::GpuArray<amrex::Real, NVAR> s_int;
 
-//   //--------------------------------------------------------------------------
-//   // lower Y
-//   //--------------------------------------------------------------------------
+        // Calling user target BC values
+        bcnormal(x_array, s_int.data(), x_bc_target.data(), 0, -1, time, geom.data(), *lprobparm);
+        int x_bc_type = 8; // Hard-coded outflow. This variable should be updated in bcnormal()
 
-//   if ((q_lo[1] < domlo[1]) && (PeleC::phys_bc.lo()[1] == UserBC)) {
-//     j = domlo[1];
-//     y = (static_cast<amrex::Real>(j) + 0.5) * dy;
-//     for (i = q_lo[0] + 1; i < q_hi[0] - 1; i++) {
-//       x = (static_cast<amrex::Real>(i) + 0.5) * dx;
-//       if (flag_nscbc_isAnyPerio == 0) {
-//         if ((i == domlo[0]) || (i == domhi[0])) {
-//           continue; // Doing that to avoid ghost cells already filled by corners
-//         }
-//       }
-//       for (k = q_lo[2] + 1; k < q_hi[2] - 1; k++) {
-//         z = (static_cast<amrex::Real>(k) + 0.5) * dz;
-//         if (flag_nscbc_isAnyPerio == 0) {
-//           if ((k == domlo[2]) || (k == domhi[2])) {
-//             continue; // Doing that to avoid ghost cells already filled by
-//                       // corners
-//           }
-//         }
+        // Filling bcMask with specific user defined BC type
+        // bcnormal([x,y,z],U_dummy,U_ext,1,-1,time,bc_type,bc_params,bc_target);
+        if (
+          (j < q_lo[1] + 3) || (j > q_hi[1] - 3) || (k < q_lo[2] + 3) ||
+          (k > q_hi[2] - 3)) {
+          // do nothing
+          // There is just 1 ghost-cell with bcMask because of the Riemann
+          // solver
+        } else {
+          x_bcMask(i + 1, j, k) = x_bc_type;
+        }
 
-//         // Normal derivative along y
-//         normal_derivative(
-//           i, j, k, 2, 1, dy, dpdy, dudy, dvdy, dwdy, drhody, q, q_l1, q_l2,
-//           q_l3, q_h1, q_h2, q_h3);
+        // LODI system waves for X
+        amrex::GpuArray<amrex::Real, 5> Lx = {{0.0}};
 
-//         // Tangential derivative along x
-//         tangential_derivative(
-//           i, j, k, 1, dx, dpdx, dudx, dvdx, dwdx, drhodx, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3);
+        // Computing the LODI system waves
+        compute_waves(i, j, k, 0, -1, x_bc_type, problen.data(), bc_params.data(),
+            x_bc_target.data(), Tx.data(), Lx.data(), dpdx, dudx, dvdx, dwdx, drhodx, q, qaux);
 
-//         // Tangential derivative along z
-//         tangential_derivative(
-//           i, j, k, 3, dz, dpdz, dudz, dvdz, dwdz, drhodz, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3);
+        // Recomputing ghost-cells values with the LODI waves
+        update_ghost_cells(i, j, k, x_bc_type, 0, -1, dx[0], domlo, domhi, Lx.data(), uin, q, qaux);
+      }
+    }
+  }
 
-//         // Compute transverse terms
-//         compute_transverse_terms(
-//           i, j, k, 2, T1_Y, T2_Y, T3_Y, T4_Y, T5_Y, dpdx, dudx, dvdx, dwdx,
-//           drhodx, dpdy, dudy, dvdy, dwdy, drhody, dpdz, dudz, dvdz, dwdz,
-//           drhodz, q, q_l1, q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2,
-//           qa_l3, qa_h1, qa_h2, qa_h3);
+  //--------------------------------------------------------------------------
+  // lower Y
+  //--------------------------------------------------------------------------
 
-//         // Filling bcMask with specific user defined BC type
-//         // bcnormal([x,y,z],U_dummy,U_ext,2,1,time,bc_type,bc_params,bc_target);
-//         if (
-//           (i < q_lo[0] + 3) || (i > q_hi[0] - 3) || (k < q_lo[2] + 3) ||
-//           (k > q_hi[2] - 3)) {
-//           // do nothing
-//           // There is just 1 ghost-cell with bcMask because of the Riemann
-//           // solver
-//         } else {
-//           y_bcMask(i, j, k) = bc_type;
-//         }
+  if ((q_lo[1] < domlo[1]) && (PeleC::phys_bc.lo()[1] == UserBC)) {
+    int j = domlo[1];
+    amrex::Real  y = (static_cast<amrex::Real>(j) + 0.5) * dx[1];
+    for (int i = q_lo[0] + 1; i < q_hi[0] - 1; i++) {
+      amrex::Real  x = (static_cast<amrex::Real>(i) + 0.5) * dx[0];
+      if (nscbc_isAnyPerio == 0) {
+        if ((i == domlo[0]) || (i == domhi[0])) {
+          continue; // Doing that to avoid ghost cells already filled by corners
+        }
+      }
+      for (int k = q_lo[2] + 1; k < q_hi[2] - 1; k++) {
+        amrex::Real  z = (static_cast<amrex::Real>(k) + 0.5) * dx[2];
+        if (nscbc_isAnyPerio == 0) {
+          if ((k == domlo[2]) || (k == domhi[2])) {
+            continue; // Doing that to avoid ghost cells already filled by
+                      // corners
+          }
+        }
+        const amrex::Real x_array[AMREX_SPACEDIM] = {AMREX_D_DECL(x,y,z)};
+        
+        // Normal derivative along y
+        amrex::Real dpdy, dudy, dvdy, dwdy, drhody;
+        normal_derivative(i, j, k, 1, 1, dx[1], dpdy, dudy, dvdy, dwdy, drhody, q);
 
-//         // Computing the LODI system waves
-//         compute_waves(
-//           i, j, k, 2, 1, bc_type, bc_params, bc_target, T1_Y, T2_Y, T3_Y, T4_Y,
-//           T5_Y, L1, L2, L3, L4, L5, dpdy, dudy, dvdy, dwdy, drhody, q, q_l1,
-//           q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1, qa_h2,
-//           qa_h3);
+        amrex::Real dpdx, dudx, dvdx, dwdx, drhodx;
+        // Tangential derivative along x
+        tangential_derivative(i, j, k, 0, dx[0], dpdx, dudx, dvdx, dwdx, drhodx, q);
 
-//         // Recomputing ghost-cells values with the LODI waves
-//         update_ghost_cells(
-//           i, j, k, bc_type, 2, 1, dy, domlo, domhi, L1, L2, L3, L4, L5, uin,
-//           uin_l1, uin_l2, uin_l3, uin_h1, uin_h2, uin_h3, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1, qa_h2, qa_h3);
-//       }
-//     }
-//   }
+        amrex::Real dpdz, dudz, dvdz, dwdz, drhodz;
+        // Tangential derivative along z
+        tangential_derivative(i, j, k, 2, dx[2], dpdz, dudz, dvdz, dwdz, drhodz, q);
 
-//   //--------------------------------------------------------------------------
-//   // upper Y
-//   //--------------------------------------------------------------------------
 
-//   if ((q_hi[1] > domhi[1]) && (PeleC::phys_bc.hi()[1] == UserBC)) {
-//     j = domhi[1];
-//     y = (static_cast<amrex::Real>(j) + 0.5) * dy;
-//     for (i = q_lo[0] + 1; i < q_hi[0] - 1; i++) {
-//       x = (static_cast<amrex::Real>(i) + 0.5) * dx;
-//       if (flag_nscbc_isAnyPerio == 0) {
-//         if ((i == domlo[0]) || (i == domhi[0])) {
-//           continue; // Doing that to avoid ghost cells already filled by corners
-//         }
-//       }
-//       for (k = q_lo[2] + 1; k < q_hi[2] - 1; k++) {
-//         z = (static_cast<amrex::Real>(k) + 0.5) * dz;
-//         if (flag_nscbc_isAnyPerio == 0) {
-//           if ((k == domlo[2]) || (k == domhi[2])) {
-//             continue; // Doing that to avoid ghost cells already filled by
-//                       // corners
-//           }
-//         }
+        amrex::GpuArray<amrex::Real, 5> Ty = {{0.0}};
+        // Compute transverse terms
+        compute_transverse_terms(
+          i, j, k, 1, Ty.data(), dpdx, dudx, dvdx, dwdx,
+          drhodx, dpdy, dudy, dvdy, dwdy, drhody, dpdz, dudz, dvdz, dwdz,
+          drhodz, q, qaux);
 
-//         // Normal derivative along y
-//         normal_derivative(
-//           i, j, k, 2, -1, dy, dpdy, dudy, dvdy, dwdy, drhody, q, q_l1, q_l2,
-//           q_l3, q_h1, q_h2, q_h3);
+        amrex::GpuArray<amrex::Real, NVAR> y_bc_target;
+        amrex::GpuArray<amrex::Real, NVAR> s_int;
 
-//         // Tangential derivative along x
-//         tangential_derivative(
-//           i, j, k, 1, dx, dpdx, dudx, dvdx, dwdx, drhodx, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3);
+        // Filling bcMask with specific user defined BC type
+        // bcnormal([x,y,z],U_dummy,U_ext,1,1,time,bc_type,bc_params,bc_target);
+        bcnormal(x_array, s_int.data(), y_bc_target.data(), 1, 1, time, geom.data(), *lprobparm);
+        int y_bc_type = 7; // Hard-coded inflow. This variable should be updated in bcnormal()
 
-//         // Tangential derivative along z
-//         tangential_derivative(
-//           i, j, k, 3, dz, dpdz, dudz, dvdz, dwdz, drhodz, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3);
+        if (
+          (i < q_lo[0] + 3) || (i > q_hi[0] - 3) || (k < q_lo[2] + 3) ||
+          (k > q_hi[2] - 3)) {
+          // do nothing
+          // There is just 1 ghost-cell with bcMask because of the Riemann
+          // solver
+        } else {
+          y_bcMask(i, j, k) = y_bc_type;
+        }
 
-//         // Compute transverse terms
-//         compute_transverse_terms(
-//           i, j, k, 2, T1_Y, T2_Y, T3_Y, T4_Y, T5_Y, dpdx, dudx, dvdx, dwdx,
-//           drhodx, dpdy, dudy, dvdy, dwdy, drhody, dpdz, dudz, dvdz, dwdz,
-//           drhodz, q, q_l1, q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2,
-//           qa_l3, qa_h1, qa_h2, qa_h3);
+        // LODI system waves for y
+        amrex::GpuArray<amrex::Real, 5> Ly = {{0.0}};
 
-//         // Filling bcMask with specific user defined BC type
-//         // bcnormal([x,y,z],U_dummy,U_ext,2,-1,time,bc_type,bc_params,bc_target);
+        // Computing the LODI system waves
+        compute_waves(i, j, k, 1, 1, y_bc_type, problen.data(), bc_params.data(),
+                    y_bc_target.data(), Ty.data(), Ly.data(), dpdy, dudy, dvdy, dwdy, drhody, q, qaux);
 
-//         if (
-//           (i < q_lo[0] + 3) || (i > q_hi[0] - 3) || (k < q_lo[2] + 3) ||
-//           (k > q_hi[2] - 3)) {
-//           // do nothing
-//           // There is just 1 ghost-cell with bcMask because of the Riemann
-//           // solver
-//         } else {
-//           y_bcMask(i, j + 1, k) = bc_type;
-//         }
+        // Recomputing ghost-cells values with the LODI waves
+        update_ghost_cells(i, j, k, y_bc_type, 1, 1, dx[1], domlo, domhi, Ly.data(), uin, q, qaux);
+      }
+    }
+  }
 
-//         // Computing the LODI system waves
-//         compute_waves(
-//           i, j, k, 2, -1, bc_type, bc_params, bc_target, T1_Y, T2_Y, T3_Y, T4_Y,
-//           T5_Y, L1, L2, L3, L4, L5, dpdy, dudy, dvdy, dwdy, drhody, q, q_l1,
-//           q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1, qa_h2,
-//           qa_h3);
+  //--------------------------------------------------------------------------
+  // upper Y
+  //--------------------------------------------------------------------------
 
-//         // Recomputing ghost-cells values with the LODI waves
-//         update_ghost_cells(
-//           i, j, k, bc_type, 2, -1, dy, domlo, domhi, L1, L2, L3, L4, L5, uin,
-//           uin_l1, uin_l2, uin_l3, uin_h1, uin_h2, uin_h3, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1, qa_h2, qa_h3);
-//       }
-//     }
-//   }
+  if ((q_hi[1] > domhi[1]) && (PeleC::phys_bc.hi()[1] == UserBC)) {
+    int j = domhi[1];
+    amrex::Real  y = (static_cast<amrex::Real>(j) + 0.5) * dx[1];
+    for (int i = q_lo[0] + 1; i < q_hi[0] - 1; i++) {
+      amrex::Real  x = (static_cast<amrex::Real>(i) + 0.5) * dx[0];
+      if (nscbc_isAnyPerio == 0) {
+        if ((i == domlo[0]) || (i == domhi[0])) {
+          continue; // Doing that to avoid ghost cells already filled by corners
+        }
+      }
+      for (int k = q_lo[2] + 1; k < q_hi[2] - 1; k++) {
+        amrex::Real  z = (static_cast<amrex::Real>(k) + 0.5) * dx[2];
+        if (nscbc_isAnyPerio == 0) {
+          if ((k == domlo[2]) || (k == domhi[2])) {
+            continue; // Doing that to avoid ghost cells already filled by
+                      // corners
+          }
+        }
+        const amrex::Real x_array[AMREX_SPACEDIM] = {AMREX_D_DECL(x,y,z)};
+        
+        // Normal derivative along y
+        amrex::Real dpdy, dudy, dvdy, dwdy, drhody;
+        normal_derivative(i, j, k, 1, -1, dx[1], dpdy, dudy, dvdy, dwdy, drhody, q);
 
-//   //--------------------------------------------------------------------------
-//   // lower Z
-//   //--------------------------------------------------------------------------
+        amrex::Real dpdx, dudx, dvdx, dwdx, drhodx;
+        // Tangential derivative along x
+        tangential_derivative(i, j, k, 0, dx[0], dpdx, dudx, dvdx, dwdx, drhodx, q);
 
-//   if ((q_lo[2] < domlo[2]) && (PeleC::phys_bc.lo()[2] == UserBC)) {
-//     k = domlo[2];
-//     z = (static_cast<amrex::Real>(k) + 0.5) * dz;
-//     for (i = q_lo[0] + 1; i < q_hi[0] - 1; i++) {
-//       x = (static_cast<amrex::Real>(i) + 0.5) * dx;
-//       if (flag_nscbc_isAnyPerio == 0) {
-//         if ((i == domlo[0]) || (i == domhi[0])) {
-//           continue; // Doing that to avoid ghost cells already filled by corners
-//         }
-//       }
-//       for (j = q_lo[1] + 1; j < q_hi[1] - 1; j++) {
-//         y = (static_cast<amrex::Real>(j) + 0.5) * dy;
-//         if (flag_nscbc_isAnyPerio == 0) {
-//           if ((j == domlo[1]) || (j == domhi[1])) {
-//             continue; // Doing that to avoid ghost cells already filled by
-//                       // corners
-//           }
-//         }
+        amrex::Real dpdz, dudz, dvdz, dwdz, drhodz;
+        // Tangential derivative along z
+        tangential_derivative(i, j, k, 2, dx[2], dpdz, dudz, dvdz, dwdz, drhodz, q);
 
-//         // Normal derivative along y
-//         normal_derivative(
-//           i, j, k, 3, 1, dz, dpdz, dudz, dvdz, dwdz, drhodz, q, q_l1, q_l2,
-//           q_l3, q_h1, q_h2, q_h3);
+        amrex::GpuArray<amrex::Real, 5> Ty = {{0.0}};
+        // Compute transverse terms
+        compute_transverse_terms(
+          i, j, k, 1, Ty.data(), dpdx, dudx, dvdx, dwdx,
+          drhodx, dpdy, dudy, dvdy, dwdy, drhody, dpdz, dudz, dvdz, dwdz,
+          drhodz, q, qaux);
 
-//         // Tangential derivative along x
-//         tangential_derivative(
-//           i, j, k, 1, dx, dpdx, dudx, dvdx, dwdx, drhodx, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3);
+        amrex::GpuArray<amrex::Real, NVAR> y_bc_target;
+        amrex::GpuArray<amrex::Real, NVAR> s_int;
 
-//         // Tangential derivative along z
-//         tangential_derivative(
-//           i, j, k, 2, dy, dpdy, dudy, dvdy, dwdy, drhody, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3);
+        // Filling bcMask with specific user defined BC type
+        // bcnormal([x,y,z],U_dummy,U_ext,2,-1,time,bc_type,bc_params,bc_target);
+        bcnormal(x_array, s_int.data(), y_bc_target.data(), 1, -1, time, geom.data(), *lprobparm);
+        int y_bc_type = 8; // Hard-coded outlow. This variable should be updated in bcnormal()
 
-//         // Compute transverse terms
-//         compute_transverse_terms(
-//           i, j, k, 3, T1_Z, T2_Z, T3_Z, T4_Z, T5_Z, dpdx, dudx, dvdx, dwdx,
-//           drhodx, dpdy, dudy, dvdy, dwdy, drhody, dpdz, dudz, dvdz, dwdz,
-//           drhodz, q, q_l1, q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2,
-//           qa_l3, qa_h1, qa_h2, qa_h3);
+        if (
+          (i < q_lo[0] + 3) || (i > q_hi[0] - 3) || (k < q_lo[2] + 3) ||
+          (k > q_hi[2] - 3)) {
+          // do nothing
+          // There is just 1 ghost-cell with bcMask because of the Riemann
+          // solver
+        } else {
+          y_bcMask(i, j + 1, k) = y_bc_type;
+        }
 
-//         // Filling bcMask with specific user defined BC type
-//         // bcnormal([x,y,z],U_dummy,U_ext,3,1,time,bc_type,bc_params,bc_target);
+        // LODI system waves for y
+        amrex::GpuArray<amrex::Real, 5> Ly = {{0.0}};
 
-//         if (
-//           (i < q_lo[0] + 3) || (i > q_hi[0] - 3) || (j < q_lo[1] + 3) ||
-//           (j > q_hi[1] - 3)) {
-//           // do nothing
-//           // There is just 1 ghost-cell with bcMask because of the Riemann
-//           // solver
-//         } else {
-//           z_bcMask(i, j, k) = bc_type;
-//         }
+        // Computing the LODI system waves
+        compute_waves(i, j, k, 1, -1, y_bc_type, problen.data(), bc_params.data(),
+                    y_bc_target.data(), Ty.data(), Ly.data(), dpdy, dudy, dvdy, dwdy, drhody, q, qaux);
 
-//         // Computing the LODI system waves
-//         compute_waves(
-//           i, j, k, 3, 1, bc_type, bc_params, bc_target, T1_Z, T2_Z, T3_Z, T4_Z,
-//           T5_Z, L1, L2, L3, L4, L5, dpdz, dudz, dvdz, dwdz, drhodz, q, q_l1,
-//           q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1, qa_h2,
-//           qa_h3);
+        // Recomputing ghost-cells values with the LODI waves
+        update_ghost_cells(i, j, k, y_bc_type, 1, -1, dx[1], domlo, domhi, Ly.data(), uin, q, qaux);
 
-//         // Recomputing ghost-cells values with the LODI waves
-//         update_ghost_cells(
-//           i, j, k, bc_type, 3, 1, dz, domlo, domhi, L1, L2, L3, L4, L5, uin,
-//           uin_l1, uin_l2, uin_l3, uin_h1, uin_h2, uin_h3, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1, qa_h2, qa_h3);
-//       }
-//     }
-//   }
+      }
+    }
+  }
 
-//   //--------------------------------------------------------------------------
-//   // upper Z
-//   //--------------------------------------------------------------------------
+  //--------------------------------------------------------------------------
+  // lower Z
+  //--------------------------------------------------------------------------
 
-//   if ((q_hi[2] > domhi[2]) && (PeleC::phys_bc.hi()[2] == UserBC)) {
-//     k = domhi[2];
-//     z = (static_cast<amrex::Real>(k) + 0.5) * dz;
-//     for (i = q_lo[0] + 1; i < q_hi[0] - 1; i++) {
-//       x = (static_cast<amrex::Real>(i) + 0.5) * dx;
-//       if (flag_nscbc_isAnyPerio == 0) {
-//         if ((i == domlo[0]) || (i == domhi[0])) {
-//           continue; // Doing that to avoid ghost cells already filled by corners
-//         }
-//       }
-//       for (j = q_lo[1] + 1; j < q_hi[1] - 1; j++) {
-//         y = (static_cast<amrex::Real>(j) + 0.5) * dy;
-//         if (flag_nscbc_isAnyPerio == 0) {
-//           if ((j == domlo[1]) || (j == domhi[1])) {
-//             continue; // Doing that to avoid ghost cells already filled by
-//                       // corners
-//           }
-//         }
+  if ((q_lo[2] < domlo[2]) && (PeleC::phys_bc.lo()[2] == UserBC)) {
+    int k = domlo[2];
+    amrex::Real z = (static_cast<amrex::Real>(k) + 0.5) * dx[2];
+    for (int i = q_lo[0] + 1; i < q_hi[0] - 1; i++) {
+      amrex::Real x = (static_cast<amrex::Real>(i) + 0.5) * dx[0];
+      if (nscbc_isAnyPerio == 0) {
+        if ((i == domlo[0]) || (i == domhi[0])) {
+          continue; // Doing that to avoid ghost cells already filled by corners
+        }
+      }
+      for (int j = q_lo[1] + 1; j < q_hi[1] - 1; j++) {
+        amrex::Real  y = (static_cast<amrex::Real>(j) + 0.5) * dx[1];
+        if (nscbc_isAnyPerio == 0) {
+          if ((j == domlo[1]) || (j == domhi[1])) {
+            continue; // Doing that to avoid ghost cells already filled by
+                      // corners
+          }
+        }
+        const amrex::Real x_array[AMREX_SPACEDIM] = {AMREX_D_DECL(x,y,z)};
 
-//         // Normal derivative along y
-//         normal_derivative(
-//           i, j, k, 3, -1, dz, dpdz, dudz, dvdz, dwdz, drhodz, q, q_l1, q_l2,
-//           q_l3, q_h1, q_h2, q_h3);
+        // Normal derivative along z
+        amrex::Real dpdz, dudz, dvdz, dwdz, drhodz;
+        normal_derivative(i, j, k, 2, 1, dx[1], dpdz, dudz, dvdz, dwdz, drhodz, q);
 
-//         // Tangential derivative along x
-//         tangential_derivative(
-//           i, j, k, 1, dx, dpdx, dudx, dvdx, dwdx, drhodx, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3);
+        amrex::Real dpdx, dudx, dvdx, dwdx, drhodx;
+        // Tangential derivative along x
+        tangential_derivative(i, j, k, 0, dx[0], dpdx, dudx, dvdx, dwdx, drhodx, q);
 
-//         // Tangential derivative along z
-//         tangential_derivative(
-//           i, j, k, 2, dy, dpdy, dudy, dvdy, dwdy, drhody, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3);
+        amrex::Real dpdy, dudy, dvdy, dwdy, drhody;
+        // Tangential derivative along y
+        tangential_derivative(i, j, k, 1, dx[1], dpdy, dudy, dvdy, dwdy, drhody, q);
 
-//         // Compute transverse terms
-//         compute_transverse_terms(
-//           i, j, k, 3, T1_Z, T2_Z, T3_Z, T4_Z, T5_Z, dpdx, dudx, dvdx, dwdx,
-//           drhodx, dpdy, dudy, dvdy, dwdy, drhody, dpdz, dudz, dvdz, dwdz,
-//           drhodz, q, q_l1, q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2,
-//           qa_l3, qa_h1, qa_h2, qa_h3);
+        amrex::GpuArray<amrex::Real, 5> Tz = {{0.0}};
+        // Compute transverse terms
+        compute_transverse_terms(
+          i, j, k, 2, Tz.data(), dpdx, dudx, dvdx, dwdx, drhodx, dpdy, dudy, dvdy, dwdy, drhody,
+          dpdz, dudz, dvdz, dwdz, drhodz, q, qaux); 
 
-//         // Filling bcMask with specific user defined BC type
-//         // bcnormal([x,y,z],U_dummy,U_ext,3,-1,time,bc_type,bc_params,bc_target)
-//         if (
-//           (i < q_lo[0] + 3) || (i > q_hi[0] - 3) || (j < q_lo[1] + 3) ||
-//           (j > q_hi[1] - 3)) {
-//           // do nothing
-//           // There is just 1 ghost-cell with bcMask because of the Riemann
-//           // solver
-//         } else {
-//           z_bcMask(i, j, k) = bc_type;
-//         }
+        amrex::GpuArray<amrex::Real, NVAR> z_bc_target;
+        amrex::GpuArray<amrex::Real, NVAR> s_int;
 
-//         // Computing the LODI system waves
-//         compute_waves(
-//           i, j, k, 3, -1, bc_type, bc_params, bc_target, T1_Z, T2_Z, T3_Z, T4_Z,
-//           T5_Z, L1, L2, L3, L4, L5, dpdz, dudz, dvdz, dwdz, drhodz, q, q_l1,
-//           q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1, qa_h2,
-//           qa_h3);
+        // Filling bcMask with specific user defined BC type
+        // bcnormal([x,y,z],U_dummy,U_ext,3,1,time,bc_type,bc_params,bc_target);
+        bcnormal(x_array, s_int.data(), z_bc_target.data(), 2, 1, time, geom.data(), *lprobparm);
+        int z_bc_type = 7; // Hard-coded inflow. This variable should be updated in bcnormal()
 
-//         // Recomputing ghost-cells values with the LODI waves
-//         update_ghost_cells(
-//           i, j, k, bc_type, 3, -1, dz, domlo, domhi, L1, L2, L3, L4, L5, uin,
-//           uin_l1, uin_l2, uin_l3, uin_h1, uin_h2, uin_h3, q, q_l1, q_l2, q_l3,
-//           q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1, qa_h2, qa_h3);
-//       }
-//     }
-//   }
-// }
+        if (
+          (i < q_lo[0] + 3) || (i > q_hi[0] - 3) || (j < q_lo[1] + 3) ||
+          (j > q_hi[1] - 3)) {
+          // do nothing
+          // There is just 1 ghost-cell with bcMask because of the Riemann
+          // solver
+        } else {
+          z_bcMask(i, j, k) = z_bc_type;
+        }
+
+        // LODI system waves for z
+        amrex::GpuArray<amrex::Real, 5> Lz = {{0.0}};
+
+        // Computing the LODI system waves
+        compute_waves(i, j, k, 2, 1, z_bc_type, problen.data(), bc_params.data(),
+          z_bc_target.data(), Tz.data(), Lz.data(), dpdz, dudz, dvdz, dwdz, drhodz, q, qaux);
+
+        // Recomputing ghost-cells values with the LODI waves
+        update_ghost_cells(i, j, k, z_bc_type, 2, 1, dx[2], domlo, domhi, Lz.data(), uin, q, qaux);
+
+      }
+    }
+  }
+
+  //--------------------------------------------------------------------------
+  // upper Z
+  //--------------------------------------------------------------------------
+
+  if ((q_hi[2] > domhi[2]) && (PeleC::phys_bc.hi()[2] == UserBC)) {
+    int k = domhi[2];
+    amrex::Real  z = (static_cast<amrex::Real>(k) + 0.5) * dx[2];
+    for (int i = q_lo[0] + 1; i < q_hi[0] - 1; i++) {
+      amrex::Real  x = (static_cast<amrex::Real>(i) + 0.5) * dx[0];
+      if (nscbc_isAnyPerio == 0) {
+        if ((i == domlo[0]) || (i == domhi[0])) {
+          continue; // Doing that to avoid ghost cells already filled by corners
+        }
+      }
+      for (int j = q_lo[1] + 1; j < q_hi[1] - 1; j++) {
+        amrex::Real  y = (static_cast<amrex::Real>(j) + 0.5) * dx[1];
+        if (nscbc_isAnyPerio == 0) {
+          if ((j == domlo[1]) || (j == domhi[1])) {
+            continue; // Doing that to avoid ghost cells already filled by
+                      // corners
+          }
+        }
+        const amrex::Real x_array[AMREX_SPACEDIM] = {AMREX_D_DECL(x,y,z)};
+
+        // Normal derivative along z
+        amrex::Real dpdz, dudz, dvdz, dwdz, drhodz;
+        normal_derivative(i, j, k, 2, -1, dx[1], dpdz, dudz, dvdz, dwdz, drhodz, q);
+
+        amrex::Real dpdx, dudx, dvdx, dwdx, drhodx;
+        // Tangential derivative along x
+        tangential_derivative(i, j, k, 0, dx[0], dpdx, dudx, dvdx, dwdx, drhodx, q);
+
+        amrex::Real dpdy, dudy, dvdy, dwdy, drhody;
+        // Tangential derivative along y
+        tangential_derivative(i, j, k, 1, dx[1], dpdy, dudy, dvdy, dwdy, drhody, q);
+
+        amrex::GpuArray<amrex::Real, 5> Tz = {{0.0}};
+        // Compute transverse terms
+        compute_transverse_terms(
+          i, j, k, 2, Tz.data(), dpdx, dudx, dvdx, dwdx, drhodx, dpdy, dudy, dvdy, dwdy, drhody,
+          dpdz, dudz, dvdz, dwdz, drhodz, q, qaux); 
+
+        amrex::GpuArray<amrex::Real, NVAR> z_bc_target;
+        amrex::GpuArray<amrex::Real, NVAR> s_int;
+
+        // Filling bcMask with specific user defined BC type
+        // bcnormal([x,y,z],U_dummy,U_ext,3,-1,time,bc_type,bc_params,bc_target)
+        bcnormal(x_array, s_int.data(), z_bc_target.data(), 2, -1, time, geom.data(), *lprobparm);
+        int z_bc_type = 8; // Hard-coded outflow. This variable should be updated in bcnormal()
+
+        if (
+          (i < q_lo[0] + 3) || (i > q_hi[0] - 3) || (j < q_lo[1] + 3) ||
+          (j > q_hi[1] - 3)) {
+          // do nothing
+          // There is just 1 ghost-cell with bcMask because of the Riemann
+          // solver
+        } else {
+          z_bcMask(i, j, k) = z_bc_type;
+        }
+
+        // LODI system waves for z
+        amrex::GpuArray<amrex::Real, 5> Lz = {{0.0}};
+
+        // Computing the LODI system waves
+        compute_waves(i, j, k, 2, -1, z_bc_type, problen.data(), bc_params.data(),
+          z_bc_target.data(), Tz.data(), Lz.data(), dpdz, dudz, dvdz, dwdz, drhodz, q, qaux);
+
+        // Recomputing ghost-cells values with the LODI waves
+        update_ghost_cells(i, j, k, z_bc_type, 2, -1, dx[2], domlo, domhi, Lz.data(), uin, q, qaux);
+      }
+    }
+  }
+}
 
 void
 PeleC::set_bc_mask(
