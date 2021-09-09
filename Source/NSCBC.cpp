@@ -46,43 +46,90 @@ PeleC::impose_NSCBC(
   const amrex::Real* dx = geom.CellSize();
   // BC params are relaxation factors for the NSCBC
   // TODO: Hard-coded for now, should be variable
-  const amrex::Real relax_U = 0.5;
-  const amrex::Real relax_V = 0.5;
-  const amrex::Real relax_W = 0.5;
-  const amrex::Real relax_T = -0.2;
-  const amrex::Real beta = 1.;
-  const amrex::Real sigma = -0.6;
+  amrex::Real relax_U = 0.5;
+  amrex::Real relax_V = 0.5;
+  amrex::Real relax_W = 0.5;
+  amrex::Real relax_T = -0.2;
+  amrex::Real beta = -0.6;
+  amrex::Real sigma = 0.3;
   amrex::GpuArray<amrex::Real, 6> bc_params = {relax_U, relax_V, relax_W, relax_T, beta, sigma};
+  amrex::Real bc_params_test[6];
+
   amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> problen =
     {prob_hi[0] - prob_lo[0], prob_hi[1] - prob_lo[1], prob_hi[2] - prob_lo[2]};
   const auto& bcs = PeleC::phys_bc;
   const ProbParmDevice* lprobparm = d_prob_parm_device;
 
-  printf("===== Inputs to impose_NSCBC() ==== \n");
-  amrex::ParallelFor(bx,
-  [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    printf("x_bcMask = %i y_bcMask = %i z_bcMask = %i \n", x_bcMask(i, j, k), y_bcMask(i, j, k), z_bcMask(i, j, k) ); 
-  });
+  // bc_params_test[0] = relax_U;
+  // bc_params_test[1] = relax_V;
+  // bc_params_test[2] = relax_W;
+  // bc_params_test[3] = relax_T;
+  // bc_params_test[4] = beta;
+  // bc_params_test[5] = sigma;
 
-  amrex::ParallelFor(bx,
-  [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    for(int n=0;n<NVAR;n++)
-    printf("q = %e \n", q(i, j, k, n)); 
-  });
+  // printf("===== Hello from impose_NSCBC() ==== \n");
 
-  amrex::ParallelFor(bx,
-  [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    for(int n=0;n<NVAR;n++)
-    printf("qaux = %e \n", qaux(i, j, k, n)); 
-  });
+  // printf("===== Inputs to impose_NSCBC() ==== \n");
 
-  amrex::ParallelFor(bx,
-  [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    for(int n=0;n<NVAR;n++)
-    printf("uin = %e \n", uin(i, j, k, n)); 
-  });
+  // printf("x_bcMask \n");
+  // amrex::ParallelFor(bx,
+  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  //   printf("%i ", x_bcMask(i, j, k)); 
+  // });
+  // printf("\n");
 
-  printf("\n");
+  // printf("y_bcMask \n");
+  // amrex::ParallelFor(bx,
+  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  //   printf("%i ", y_bcMask(i, j, k)); 
+  // });
+  // printf("\n");
+
+  // printf("z_bcMask \n");
+  // amrex::ParallelFor(bx,
+  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  //   printf("%i ", z_bcMask(i, j, k)); 
+  // });
+  // printf("\n");
+
+
+  // // printf("q \n");
+  // amrex::ParallelFor(bx,
+  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  //   amrex::Real scalar = i+j+k;
+  //   // printf("scalar = %f i = %i j = %i k = %i \n", scalar,i,j,k);
+  //   for(int n=0;n<NVAR;n++)
+  //     q(i, j, k, n) = scalar;
+  //   // printf("%e ", q(i, j, k, n)); 
+  // });
+  // // printf("\n");
+
+  // // printf("qaux \n");
+  // amrex::ParallelFor(bx,
+  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  //   for(int n=0;n<NVAR;n++)
+  //     qaux(i, j, k, n) = 10.0;
+  //   // printf("%e ", qaux(i, j, k, n)); 
+  // });
+  // // printf("\n");
+
+  // // printf("uin \n");
+  // amrex::ParallelFor(bx,
+  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  //   for(int n=0;n<NVAR;n++)
+  //     uin(i, j, k, n) = 10.0;
+  //   // printf("%e ", uin(i, j, k, n)); 
+  // });
+  // // printf("\n");
+  // amrex::Print() << "nscbc_isAnyPerio " << nscbc_isAnyPerio << "\n";
+
+  // printf("q init \n");
+  // amrex::ParallelFor(bx,
+  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  //   // for(int n=0;n<NVAR;n++)
+  //   printf("%e ", q(i, j, k, NVAR-1)); 
+  // });
+  // printf("\n");
 
   // Note the BC indices are
   // 0: Interior (periodic)
@@ -161,10 +208,11 @@ PeleC::impose_NSCBC(
           compute_transverse_terms(
             i, j, k, 2, Tz.data(), dpdx, dudx, dvdx, dwdx, drhodx, dpdy, dudy, dvdy, dwdy, drhody,
             dpdz, dudz, dvdz, dwdz, drhodz, q, qaux);
-          amrex::GpuArray<amrex::Real, NVAR> x_bc_target;
-          amrex::GpuArray<amrex::Real, NVAR> y_bc_target;
-          amrex::GpuArray<amrex::Real, NVAR> z_bc_target;
+          amrex::GpuArray<amrex::Real, 5> x_bc_target;
+          amrex::GpuArray<amrex::Real, 5> y_bc_target;
+          amrex::GpuArray<amrex::Real, 5> z_bc_target;
           amrex::GpuArray<amrex::Real, NVAR> s_int;
+          amrex::GpuArray<amrex::Real, NVAR> s_ext;
 
           // LODI system waves for X
           amrex::GpuArray<amrex::Real, 5> Lx = {{0.0}};
@@ -184,12 +232,13 @@ PeleC::impose_NSCBC(
           //       BC types to be returned based on current index, commenting out for now
           // Now just assumes low is inflow and high is outflow
           if (test_keyword_x == 6) {
-            bcnormal(x, s_int.data(), x_bc_target.data(), 0, x_isgn, time, geom.data(), *lprobparm);
+            x_bc_type = -1; // this variable will be updated in bcnormal()
+            bcnormal(x, s_int.data(), s_ext.data(), 0, x_isgn, time, geom.data(), *lprobparm, x_bc_type, &bc_params_test[0], x_bc_target.data());
             // TODO: Hard-coded Inflow and Outflow, bcnormal should provide these
-            if (x_isgn == 1)
-              x_bc_type = 7; // Inflow
-            else
-              x_bc_type = 8; //Outflow
+            // if (x_isgn == 1)
+            //   x_bc_type = 8; //set as outflow for now // Inflow
+            // else
+            //   x_bc_type = 8; //Outflow
           }
           x_bcMask(i, j, k) = x_bc_type;
           if (test_keyword_y == 6) {
@@ -415,10 +464,13 @@ PeleC::impose_NSCBC(
 
         amrex::GpuArray<amrex::Real, NVAR> x_bc_target;
         amrex::GpuArray<amrex::Real, NVAR> s_int;
+        amrex::GpuArray<amrex::Real, NVAR> s_ext;
 
         // Calling user target BC values
-        bcnormal(x_array, s_int.data(), x_bc_target.data(), 0, 1, time, geom.data(), *lprobparm);
-        int x_bc_type = 7; // Hard-coded inflow. This variable should be updated in bcnormal()
+        int x_bc_type = -1; // this variable will be updated in bcnormal()
+        bcnormal(x_array, s_int.data(), s_ext.data(), 0, 1, time, geom.data(), *lprobparm, x_bc_type, bc_params_test, x_bc_target.data());
+        // bcnormal(x, s_int.data(), x_bc_target.data(), 0, 1, time, geom.data(), *lprobparm);
+        // int x_bc_type = 8; //set as outflow for now // Hard-coded inflow. This variable should be updated in bcnormal()
 
         // Filling bcMask with specific user defined BC type
         if (
@@ -489,10 +541,13 @@ PeleC::impose_NSCBC(
 
         amrex::GpuArray<amrex::Real, NVAR> x_bc_target;
         amrex::GpuArray<amrex::Real, NVAR> s_int;
+        amrex::GpuArray<amrex::Real, NVAR> s_ext;
 
         // Calling user target BC values
-        bcnormal(x_array, s_int.data(), x_bc_target.data(), 0, -1, time, geom.data(), *lprobparm);
-        int x_bc_type = 8; // Hard-coded outflow. This variable should be updated in bcnormal()
+        int x_bc_type = -1; // this variable will be updated in bcnormal()
+        bcnormal(x_array, s_int.data(), s_ext.data(), 0, -1, time, geom.data(), *lprobparm, x_bc_type, bc_params_test, x_bc_target.data());
+        // bcnormal(x_array, s_int.data(), x_bc_target.data(), 0, -1, time, geom.data(), *lprobparm);
+        // int x_bc_type = 8; // Hard-coded outflow. This variable should be updated in bcnormal()
 
         // Filling bcMask with specific user defined BC type
         // bcnormal([x,y,z],U_dummy,U_ext,1,-1,time,bc_type,bc_params,bc_target);
@@ -816,32 +871,61 @@ PeleC::impose_NSCBC(
     }
   }
 
-  printf("===== OUTPUTS  ==== \n");
-  amrex::ParallelFor(bx,
-  [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    printf("x_bcMask = %i y_bcMask = %i z_bcMask = %i \n", x_bcMask(i, j, k), y_bcMask(i, j, k), z_bcMask(i, j, k) ); 
-  });
+  // printf("===== OUTPUTS  ==== \n");
 
-  amrex::ParallelFor(bx,
-  [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    for(int n=0;n<NVAR;n++)
-    printf("q = %e \n", q(i, j, k, n)); 
-  });
+  // printf("x_bcMask \n");
+  // amrex::ParallelFor(bx,
+  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  //   printf("%i ", x_bcMask(i, j, k)); 
+  // });
+  // printf("\n");
 
-  amrex::ParallelFor(bx,
-  [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    for(int n=0;n<NVAR;n++)
-    printf("qaux = %e \n", qaux(i, j, k, n)); 
-  });
+  // printf("y_bcMask \n");
+  // amrex::ParallelFor(bx,
+  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  //   printf("%i ", y_bcMask(i, j, k)); 
+  // });
+  // printf("\n");
 
-  amrex::ParallelFor(bx,
-  [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-    for(int n=0;n<NVAR;n++)
-    printf("uin = %e \n", uin(i, j, k, n)); 
-  });
+  // printf("z_bcMask \n");
+  // amrex::ParallelFor(bx,
+  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  //   printf("%i ", z_bcMask(i, j, k)); 
+  // });
+  // printf("\n");
 
-  printf("\n");
+  // // printf("q \n");
+  // amrex::ParallelFor(bx,
+  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  //   for(int n=0;n<NVAR;n++){
+  //     if(q(i, j, k, n) != q(i, j, k, n))
+  //       amrex::Abort("Found NaN in the q array. Stopping...");
+  //   }
+  //   // printf("%e ", q(i, j, k, n)); 
+  // });
+  // // printf("\n");
 
+  // // printf("qaux \n");
+  // amrex::ParallelFor(bx,
+  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  //   for(int n=0;n<NVAR;n++)
+  //     if(qaux(i, j, k, n) != qaux(i, j, k, n))
+  //       amrex::Abort("Found NaN in the qaux array. Stopping...");
+  //   // printf("%e ", qaux(i, j, k, n)); 
+  // });
+  // printf("\n");
+
+  // // printf("uin \n");
+  // amrex::ParallelFor(bx,
+  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+  //   for(int n=0;n<NVAR;n++)
+  //     if(uin(i, j, k, n) != uin(i, j, k, n))
+  //       amrex::Abort("Found NaN in the uin array. Stopping...");
+  //   // for(int n=0;n<NVAR;n++)
+  //   // printf("%e ", uin(i, j, k, NVAR-1)); 
+  // });
+  // // printf("\n");
+  // // amrex::Abort("Stopping...");
 }
 
 void

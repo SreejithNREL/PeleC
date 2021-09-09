@@ -673,7 +673,7 @@ void update_ghost_cells(
     }
 
     amrex::Real eos_state_T, eos_state_e, eos_state_gamma, eos_state_cs;
-    amrex::Real eos_state_dpdr_e, eos_state_dpde, eos_state_gam1, wbar;
+    amrex::Real eos_state_dpdr_e, eos_state_dpde, wbar;
     eos.Y2WBAR(eos_state_massfrac, wbar);
     eos.RYP2E(eos_state_rho, eos_state_massfrac, eos_state_p, eos_state_e);
     eos.EY2T(eos_state_e, eos_state_massfrac, eos_state_T);
@@ -687,7 +687,7 @@ void update_ghost_cells(
 
     qaux(ii, jj, kk, QDPDR) = eos_state_dpdr_e;
     qaux(ii, jj, kk, QDPDE) = eos_state_dpde;
-    qaux(ii, jj, kk, QGAMC) = eos_state_gam1;
+    qaux(ii, jj, kk, QGAMC) = eos_state_gamma;
     qaux(ii, jj, kk, QC) = eos_state_cs;
     qaux(ii, jj, kk, QCSML) = amrex::max<amrex::Real>(
       constants::small_num(), constants::small_num() * eos_state_cs);
@@ -751,7 +751,14 @@ compute_waves(
   amrex::Real TARGET_VY = bc_target[1];
   amrex::Real TARGET_VZ = bc_target[2];
   amrex::Real TARGET_TEMPERATURE = bc_target[3];
-  amrex::Real TARGET_PRESSURE = bc_target[4];
+  amrex::Real TARGET_PRESSURE    = bc_target[4];
+
+  printf("TARGET_VX = %f \n",TARGET_VX);
+  printf("TARGET_VY = %f \n",TARGET_VY);
+  printf("TARGET_VZ = %f \n",TARGET_VZ);
+  printf("TARGET_TEMPERATURE = %f \n",TARGET_TEMPERATURE);
+  printf("TARGET_PRESSURE = %f \n",TARGET_PRESSURE);
+  printf("\n");
 
   amrex::Real relax_T = bc_params[0];
   amrex::Real relax_U = bc_params[1];
