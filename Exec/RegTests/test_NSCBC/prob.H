@@ -100,8 +100,8 @@ bcnormal(
   amrex::GeometryData const& geomdata,
   ProbParmDevice const& prob_parm,
   int bc_type = 0,
-  amrex::Real* bc_params = nullptr,
-  amrex::Real* bc_target = nullptr)
+  amrex::Real bc_params[6] = PeleC::h_prob_parm_device->bc_params_init,
+  amrex::Real bc_target[6] = PeleC::h_prob_parm_device->bc_target_init)
 {
   if(idir == 0){
     for (int n = 0; n < NVAR; n++){
@@ -109,50 +109,60 @@ bcnormal(
       // printf("s_ext[%i] = %f\n", n, s_ext[n]);
     }
 
-    if(bc_type = -1){
-      bc_type = 8; //outflow
-
-      amrex::Real massfrac[NUM_SPECIES] = {0.0};
-      amrex::Real P, rho;
-      for (int n = 0; n < NUM_SPECIES; n++)
-        massfrac[n] = prob_parm.air_state[UFS + n];
-
-      auto eos = pele::physics::PhysicsType::eos();
-      rho = prob_parm.air_state[URHO];
-      eos.RTY2P(rho, prob_parm.air_state[UTEMP], massfrac, P);
-      // printf("Target pressure: %f [bar]\n",P/1.e+6);
-
-      amrex::Real TARGET_VX = prob_parm.air_state[UMX]/rho;
-      amrex::Real TARGET_VY = prob_parm.air_state[UMY]/rho;
-      amrex::Real TARGET_VZ = prob_parm.air_state[UMZ]/rho;
-      amrex::Real TARGET_TEMPERATURE = prob_parm.air_state[UTEMP];
-      amrex::Real TARGET_PRESSURE = P;
-
-      bc_target[0] = TARGET_VX;
-      bc_target[1] = TARGET_VY;
-      bc_target[2] = TARGET_VZ;
-      bc_target[3] = TARGET_TEMPERATURE;
-      bc_target[4] = TARGET_PRESSURE;
-
-
-      amrex::Real relax_U = 0.5;
-      amrex::Real relax_V = 0.5;
-      amrex::Real relax_W = 0.5;
-      amrex::Real relax_T = -0.2;
-      amrex::Real beta = -0.6;
-      amrex::Real sigma = 0.3;
-
-      // bc_params[0] = relax_U;
-      // bc_params[1] = relax_V;
-      // bc_params[2] = relax_W;
-      // bc_params[3] = relax_T;
-      // bc_params[4] = beta;
-      // bc_params[5] = sigma;
-    }
-
   }
 }
 
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+void
+nscbc_targets(
+  ProbParmDevice const& prob_parm,
+  int& bc_type,
+  amrex::Real bc_params[6],
+  amrex::Real bc_target[6])
+{
+    bc_type = 8; //outflow
+
+    amrex::Real massfrac[NUM_SPECIES] = {0.0};
+    amrex::Real P, rho;
+    for (int n = 0; n < NUM_SPECIES; n++)
+      massfrac[n] = prob_parm.air_state[UFS + n];
+
+    auto eos = pele::physics::PhysicsType::eos();
+    rho = prob_parm.air_state[URHO];
+    eos.RTY2P(rho, prob_parm.air_state[UTEMP], massfrac, P);
+    // printf("Target pressure: %f [bar]\n",P/1.e+6);
+
+    amrex::Real TARGET_VX = prob_parm.air_state[UMX]/rho;
+    amrex::Real TARGET_VY = prob_parm.air_state[UMY]/rho;
+    amrex::Real TARGET_VZ = prob_parm.air_state[UMZ]/rho;
+    amrex::Real TARGET_TEMPERATURE = prob_parm.air_state[UTEMP];
+    amrex::Real TARGET_PRESSURE = P;
+
+    bc_target[0] = TARGET_VX;
+    bc_target[1] = TARGET_VY;
+    bc_target[2] = TARGET_VZ;
+    bc_target[3] = TARGET_TEMPERATURE;
+    bc_target[4] = TARGET_PRESSURE;
+
+    //parameters used when inflow is used
+    amrex::Real relax_U = 0.0;
+    amrex::Real relax_V = 0.0;
+    amrex::Real relax_W = 0.0;
+    amrex::Real relax_T = -0.2;
+    //parameters for outflow
+    amrex::Real beta = -0.6;
+    amrex::Real sigma = 0.0;
+
+
+    bc_params[0] = relax_U;
+    bc_params[1] = relax_V;
+    bc_params[2] = relax_W;
+    bc_params[3] = relax_T;
+    bc_params[4] = beta;
+    bc_params[5] = sigma;
+
+}
 void pc_prob_close();
 
 using ProblemTags = EmptyProbTagStruct;

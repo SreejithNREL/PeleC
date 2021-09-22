@@ -52,20 +52,11 @@ PeleC::impose_NSCBC(
   amrex::Real relax_T = -0.2;
   amrex::Real beta = -0.6;
   amrex::Real sigma = 0.3;
-  amrex::GpuArray<amrex::Real, 6> bc_params = {relax_U, relax_V, relax_W, relax_T, beta, sigma};
-  amrex::Real bc_params_test[6];
 
   amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> problen =
     {prob_hi[0] - prob_lo[0], prob_hi[1] - prob_lo[1], prob_hi[2] - prob_lo[2]};
   const auto& bcs = PeleC::phys_bc;
   const ProbParmDevice* lprobparm = d_prob_parm_device;
-
-  // bc_params_test[0] = relax_U;
-  // bc_params_test[1] = relax_V;
-  // bc_params_test[2] = relax_W;
-  // bc_params_test[3] = relax_T;
-  // bc_params_test[4] = beta;
-  // bc_params_test[5] = sigma;
 
   // printf("===== Hello from impose_NSCBC() ==== \n");
 
@@ -227,13 +218,18 @@ PeleC::impose_NSCBC(
           int x_bc_type = test_keyword_x;
           int y_bc_type = test_keyword_y;
           int z_bc_type = test_keyword_z;
+          amrex::GpuArray<amrex::Real, 6> bc_params_x = {relax_U, relax_V, relax_W, relax_T, beta, sigma};
+          amrex::GpuArray<amrex::Real, 6> bc_params_y = {relax_U, relax_V, relax_W, relax_T, beta, sigma};
+          amrex::GpuArray<amrex::Real, 6> bc_params_z = {relax_U, relax_V, relax_W, relax_T, beta, sigma};
+
           // UserBC type is 6
           // TODO: I believe this won't work until bcnormal is designed to allow
           //       BC types to be returned based on current index, commenting out for now
           // Now just assumes low is inflow and high is outflow
           if (test_keyword_x == 6) {
             x_bc_type = -1; // this variable will be updated in bcnormal()
-            bcnormal(x, s_int.data(), s_ext.data(), 0, x_isgn, time, geom.data(), *lprobparm, x_bc_type, &bc_params_test[0], x_bc_target.data());
+            bcnormal(x, s_int.data(), s_ext.data(), 0, x_isgn, time, geom.data(), *lprobparm);
+            nscbc_targets(*lprobparm, x_bc_type, bc_params_x.data(), x_bc_target.data());
             // TODO: Hard-coded Inflow and Outflow, bcnormal should provide these
             // if (x_isgn == 1)
             //   x_bc_type = 8; //set as outflow for now // Inflow
@@ -242,28 +238,32 @@ PeleC::impose_NSCBC(
           }
           x_bcMask(i, j, k) = x_bc_type;
           if (test_keyword_y == 6) {
-            bcnormal(x, s_int.data(), y_bc_target.data(), 1, y_isgn, time, geom.data(), *lprobparm);
+            y_bc_type = -1; // this variable will be updated in bcnormal()
+            bcnormal(x, s_int.data(), s_ext.data(), 1, y_isgn, time, geom.data(), *lprobparm);
+            nscbc_targets(*lprobparm, y_bc_type, bc_params_y.data(), y_bc_target.data());
             // TODO: Hard-coded Inflow and Outflow, bcnormal should provide these
-            if (y_isgn == 1)
-              y_bc_type = 7; // Inflow
-            else
-              y_bc_type = 8; //Outflow
+            // if (y_isgn == 1)
+            //   y_bc_type = 7; // Inflow
+            // else
+            //   y_bc_type = 8; //Outflow
           }
           y_bcMask(i, j, k) = y_bc_type;
           if (test_keyword_x == 6) {
-            bcnormal(x, s_int.data(), z_bc_target.data(), 2, y_isgn, time, geom.data(), *lprobparm);
+            z_bc_type = -1; // this variable will be updated in bcnormal()
+            bcnormal(x, s_int.data(), s_ext.data(), 2, y_isgn, time, geom.data(), *lprobparm);
+            nscbc_targets(*lprobparm, z_bc_type, bc_params_z.data(), z_bc_target.data());
             // TODO: Hard-coded Inflow and Outflow, bcnormal should provide these
-            if (z_isgn == 1)
-              z_bc_type = 7; // Inflow
-            else
-              z_bc_type = 8; //Outflow
+            // if (z_isgn == 1)
+            //   z_bc_type = 7; // Inflow
+            // else
+            //   z_bc_type = 8; //Outflow
           }
           z_bcMask(i, j, k) = z_bc_type;
-          compute_waves(i, j, k, 0, x_isgn, x_bc_type, problen.data(), bc_params.data(),
+          compute_waves(i, j, k, 0, x_isgn, x_bc_type, problen.data(), bc_params_x.data(),
             x_bc_target.data(), Tx.data(), Lx.data(), dpdx, dudx, dvdx, dwdx, drhodx, q, qaux);
-          compute_waves(i, j, k, 1, y_isgn, y_bc_type, problen.data(), bc_params.data(),
+          compute_waves(i, j, k, 1, y_isgn, y_bc_type, problen.data(), bc_params_y.data(),
             y_bc_target.data(), Ty.data(), Ly.data(), dpdy, dudy, dvdy, dwdy, drhody, q, qaux);
-          compute_waves(i, j, k, 2, z_isgn, z_bc_type, problen.data(), bc_params.data(),
+          compute_waves(i, j, k, 2, z_isgn, z_bc_type, problen.data(), bc_params_z.data(),
             z_bc_target.data(), Tz.data(), Lz.data(), dpdz, dudz, dvdz, dwdz, drhodz, q, qaux);
           update_ghost_cells(i, j, k, x_bc_type, 0, x_isgn, dx[0], domlo, domhi, Lx.data(), uin, q, qaux);
           update_ghost_cells(i, j, k, y_bc_type, 1, y_isgn, dx[1], domlo, domhi, Ly.data(), uin, q, qaux);
@@ -465,10 +465,12 @@ PeleC::impose_NSCBC(
         amrex::GpuArray<amrex::Real, NVAR> x_bc_target;
         amrex::GpuArray<amrex::Real, NVAR> s_int;
         amrex::GpuArray<amrex::Real, NVAR> s_ext;
+        amrex::GpuArray<amrex::Real, 6> bc_params = {relax_U, relax_V, relax_W, relax_T, beta, sigma};
 
         // Calling user target BC values
-        int x_bc_type = -1; // this variable will be updated in bcnormal()
-        bcnormal(x_array, s_int.data(), s_ext.data(), 0, 1, time, geom.data(), *lprobparm, x_bc_type, bc_params_test, x_bc_target.data());
+        int x_bc_type; // this variable will be updated in bcnormal()
+        bcnormal(x_array, s_int.data(), s_ext.data(), 0, 1, time, geom.data(), *lprobparm);
+        nscbc_targets(*lprobparm, x_bc_type, bc_params.data(), x_bc_target.data());
         // bcnormal(x, s_int.data(), x_bc_target.data(), 0, 1, time, geom.data(), *lprobparm);
         // int x_bc_type = 8; //set as outflow for now // Hard-coded inflow. This variable should be updated in bcnormal()
 
@@ -542,10 +544,12 @@ PeleC::impose_NSCBC(
         amrex::GpuArray<amrex::Real, NVAR> x_bc_target;
         amrex::GpuArray<amrex::Real, NVAR> s_int;
         amrex::GpuArray<amrex::Real, NVAR> s_ext;
+        amrex::GpuArray<amrex::Real, 6> bc_params = {relax_U, relax_V, relax_W, relax_T, beta, sigma};
 
         // Calling user target BC values
         int x_bc_type = -1; // this variable will be updated in bcnormal()
-        bcnormal(x_array, s_int.data(), s_ext.data(), 0, -1, time, geom.data(), *lprobparm, x_bc_type, bc_params_test, x_bc_target.data());
+        bcnormal(x_array, s_int.data(), s_ext.data(), 0, -1, time, geom.data(), *lprobparm);
+        nscbc_targets(*lprobparm, x_bc_type, bc_params.data(), x_bc_target.data());
         // bcnormal(x_array, s_int.data(), x_bc_target.data(), 0, -1, time, geom.data(), *lprobparm);
         // int x_bc_type = 8; // Hard-coded outflow. This variable should be updated in bcnormal()
 
@@ -620,11 +624,15 @@ PeleC::impose_NSCBC(
 
         amrex::GpuArray<amrex::Real, NVAR> y_bc_target;
         amrex::GpuArray<amrex::Real, NVAR> s_int;
+        amrex::GpuArray<amrex::Real, NVAR> s_ext;
+        amrex::GpuArray<amrex::Real, 6> bc_params = {relax_U, relax_V, relax_W, relax_T, beta, sigma};
 
         // Filling bcMask with specific user defined BC type
         // bcnormal([x,y,z],U_dummy,U_ext,1,1,time,bc_type,bc_params,bc_target);
-        bcnormal(x_array, s_int.data(), y_bc_target.data(), 1, 1, time, geom.data(), *lprobparm);
-        int y_bc_type = 7; // Hard-coded inflow. This variable should be updated in bcnormal()
+        int y_bc_type = -1;
+        bcnormal(x_array, s_int.data(), s_ext.data(), 1, 1, time, geom.data(), *lprobparm);
+        nscbc_targets(*lprobparm, y_bc_type, bc_params.data(), y_bc_target.data());
+        // int y_bc_type = 7; // Hard-coded inflow. This variable should be updated in bcnormal()
 
         if (
           (i < q_lo[0] + 3) || (i > q_hi[0] - 3) || (k < q_lo[2] + 3) ||
@@ -694,11 +702,15 @@ PeleC::impose_NSCBC(
 
         amrex::GpuArray<amrex::Real, NVAR> y_bc_target;
         amrex::GpuArray<amrex::Real, NVAR> s_int;
+        amrex::GpuArray<amrex::Real, NVAR> s_ext;
+        amrex::GpuArray<amrex::Real, 6> bc_params = {relax_U, relax_V, relax_W, relax_T, beta, sigma};
 
         // Filling bcMask with specific user defined BC type
         // bcnormal([x,y,z],U_dummy,U_ext,2,-1,time,bc_type,bc_params,bc_target);
-        bcnormal(x_array, s_int.data(), y_bc_target.data(), 1, -1, time, geom.data(), *lprobparm);
-        int y_bc_type = 8; // Hard-coded outlow. This variable should be updated in bcnormal()
+        int y_bc_type = -1;
+        bcnormal(x_array, s_int.data(), s_ext.data(), 1, -1, time, geom.data(), *lprobparm);
+        nscbc_targets(*lprobparm, y_bc_type, bc_params.data(), y_bc_target.data());
+        // int y_bc_type = 8; // Hard-coded outlow. This variable should be updated in bcnormal()
 
         if (
           (i < q_lo[0] + 3) || (i > q_hi[0] - 3) || (k < q_lo[2] + 3) ||
@@ -768,11 +780,15 @@ PeleC::impose_NSCBC(
 
         amrex::GpuArray<amrex::Real, NVAR> z_bc_target;
         amrex::GpuArray<amrex::Real, NVAR> s_int;
+        amrex::GpuArray<amrex::Real, NVAR> s_ext;
+        amrex::GpuArray<amrex::Real, 6> bc_params = {relax_U, relax_V, relax_W, relax_T, beta, sigma};
 
         // Filling bcMask with specific user defined BC type
         // bcnormal([x,y,z],U_dummy,U_ext,3,1,time,bc_type,bc_params,bc_target);
-        bcnormal(x_array, s_int.data(), z_bc_target.data(), 2, 1, time, geom.data(), *lprobparm);
-        int z_bc_type = 7; // Hard-coded inflow. This variable should be updated in bcnormal()
+        int z_bc_type = -1;
+        bcnormal(x_array, s_int.data(), s_ext.data(), 2, 1, time, geom.data(), *lprobparm);
+        nscbc_targets(*lprobparm, z_bc_type, bc_params.data(), z_bc_target.data());
+        // int z_bc_type = 7; // Hard-coded inflow. This variable should be updated in bcnormal()
 
         if (
           (i < q_lo[0] + 3) || (i > q_hi[0] - 3) || (j < q_lo[1] + 3) ||
@@ -842,11 +858,15 @@ PeleC::impose_NSCBC(
 
         amrex::GpuArray<amrex::Real, NVAR> z_bc_target;
         amrex::GpuArray<amrex::Real, NVAR> s_int;
+        amrex::GpuArray<amrex::Real, NVAR> s_ext;
+        amrex::GpuArray<amrex::Real, 6> bc_params = {relax_U, relax_V, relax_W, relax_T, beta, sigma};
 
         // Filling bcMask with specific user defined BC type
         // bcnormal([x,y,z],U_dummy,U_ext,3,-1,time,bc_type,bc_params,bc_target)
-        bcnormal(x_array, s_int.data(), z_bc_target.data(), 2, -1, time, geom.data(), *lprobparm);
-        int z_bc_type = 8; // Hard-coded outflow. This variable should be updated in bcnormal()
+        int z_bc_type = -1;
+        bcnormal(x_array, s_int.data(), s_ext.data(), 2, -1, time, geom.data(), *lprobparm);
+        nscbc_targets(*lprobparm, z_bc_type, bc_params.data(), z_bc_target.data());
+        // int z_bc_type = 8; // Hard-coded outflow. This variable should be updated in bcnormal()
 
         if (
           (i < q_lo[0] + 3) || (i > q_hi[0] - 3) || (j < q_lo[1] + 3) ||
@@ -894,16 +914,17 @@ PeleC::impose_NSCBC(
   // });
   // printf("\n");
 
-  // // printf("q \n");
+  // printf("q \n");
   // amrex::ParallelFor(bx,
   // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
   //   for(int n=0;n<NVAR;n++){
+  //     printf("%f \n", q(i, j, k, n));
   //     if(q(i, j, k, n) != q(i, j, k, n))
   //       amrex::Abort("Found NaN in the q array. Stopping...");
   //   }
   //   // printf("%e ", q(i, j, k, n)); 
   // });
-  // // printf("\n");
+  // printf("\n");
 
   // // printf("qaux \n");
   // amrex::ParallelFor(bx,
