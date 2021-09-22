@@ -753,13 +753,6 @@ compute_waves(
   amrex::Real TARGET_TEMPERATURE = bc_target[3];
   amrex::Real TARGET_PRESSURE    = bc_target[4];
 
-  printf("TARGET_VX = %f \n",TARGET_VX);
-  printf("TARGET_VY = %f \n",TARGET_VY);
-  printf("TARGET_VZ = %f \n",TARGET_VZ);
-  printf("TARGET_TEMPERATURE = %f \n",TARGET_TEMPERATURE);
-  printf("TARGET_PRESSURE = %f \n",TARGET_PRESSURE);
-  printf("\n");
-
   amrex::Real relax_T = bc_params[0];
   amrex::Real relax_U = bc_params[1];
   amrex::Real relax_V = bc_params[2];

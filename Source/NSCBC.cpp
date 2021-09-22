@@ -58,70 +58,6 @@ PeleC::impose_NSCBC(
   const auto& bcs = PeleC::phys_bc;
   const ProbParmDevice* lprobparm = d_prob_parm_device;
 
-  // printf("===== Hello from impose_NSCBC() ==== \n");
-
-  // printf("===== Inputs to impose_NSCBC() ==== \n");
-
-  // printf("x_bcMask \n");
-  // amrex::ParallelFor(bx,
-  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-  //   printf("%i ", x_bcMask(i, j, k)); 
-  // });
-  // printf("\n");
-
-  // printf("y_bcMask \n");
-  // amrex::ParallelFor(bx,
-  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-  //   printf("%i ", y_bcMask(i, j, k)); 
-  // });
-  // printf("\n");
-
-  // printf("z_bcMask \n");
-  // amrex::ParallelFor(bx,
-  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-  //   printf("%i ", z_bcMask(i, j, k)); 
-  // });
-  // printf("\n");
-
-
-  // // printf("q \n");
-  // amrex::ParallelFor(bx,
-  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-  //   amrex::Real scalar = i+j+k;
-  //   // printf("scalar = %f i = %i j = %i k = %i \n", scalar,i,j,k);
-  //   for(int n=0;n<NVAR;n++)
-  //     q(i, j, k, n) = scalar;
-  //   // printf("%e ", q(i, j, k, n)); 
-  // });
-  // // printf("\n");
-
-  // // printf("qaux \n");
-  // amrex::ParallelFor(bx,
-  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-  //   for(int n=0;n<NVAR;n++)
-  //     qaux(i, j, k, n) = 10.0;
-  //   // printf("%e ", qaux(i, j, k, n)); 
-  // });
-  // // printf("\n");
-
-  // // printf("uin \n");
-  // amrex::ParallelFor(bx,
-  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-  //   for(int n=0;n<NVAR;n++)
-  //     uin(i, j, k, n) = 10.0;
-  //   // printf("%e ", uin(i, j, k, n)); 
-  // });
-  // // printf("\n");
-  // amrex::Print() << "nscbc_isAnyPerio " << nscbc_isAnyPerio << "\n";
-
-  // printf("q init \n");
-  // amrex::ParallelFor(bx,
-  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-  //   // for(int n=0;n<NVAR;n++)
-  //   printf("%e ", q(i, j, k, NVAR-1)); 
-  // });
-  // printf("\n");
-
   // Note the BC indices are
   // 0: Interior (periodic)
   // 1: Hard
@@ -227,36 +163,21 @@ PeleC::impose_NSCBC(
           //       BC types to be returned based on current index, commenting out for now
           // Now just assumes low is inflow and high is outflow
           if (test_keyword_x == 6) {
-            x_bc_type = -1; // this variable will be updated in bcnormal()
+            x_bc_type = -1; // this variable will be updated in bcnormal(). The code will stop if it doesn't get updated
             bcnormal(x, s_int.data(), s_ext.data(), 0, x_isgn, time, geom.data(), *lprobparm);
             nscbc_targets(*lprobparm, x_bc_type, bc_params_x.data(), x_bc_target.data());
-            // TODO: Hard-coded Inflow and Outflow, bcnormal should provide these
-            // if (x_isgn == 1)
-            //   x_bc_type = 8; //set as outflow for now // Inflow
-            // else
-            //   x_bc_type = 8; //Outflow
           }
           x_bcMask(i, j, k) = x_bc_type;
           if (test_keyword_y == 6) {
-            y_bc_type = -1; // this variable will be updated in bcnormal()
+            y_bc_type = -1; // this variable will be updated in bcnormal(). The code will stop if it doesn't get updated
             bcnormal(x, s_int.data(), s_ext.data(), 1, y_isgn, time, geom.data(), *lprobparm);
             nscbc_targets(*lprobparm, y_bc_type, bc_params_y.data(), y_bc_target.data());
-            // TODO: Hard-coded Inflow and Outflow, bcnormal should provide these
-            // if (y_isgn == 1)
-            //   y_bc_type = 7; // Inflow
-            // else
-            //   y_bc_type = 8; //Outflow
           }
           y_bcMask(i, j, k) = y_bc_type;
           if (test_keyword_x == 6) {
             z_bc_type = -1; // this variable will be updated in bcnormal()
             bcnormal(x, s_int.data(), s_ext.data(), 2, y_isgn, time, geom.data(), *lprobparm);
             nscbc_targets(*lprobparm, z_bc_type, bc_params_z.data(), z_bc_target.data());
-            // TODO: Hard-coded Inflow and Outflow, bcnormal should provide these
-            // if (z_isgn == 1)
-            //   z_bc_type = 7; // Inflow
-            // else
-            //   z_bc_type = 8; //Outflow
           }
           z_bcMask(i, j, k) = z_bc_type;
           compute_waves(i, j, k, 0, x_isgn, x_bc_type, problen.data(), bc_params_x.data(),
@@ -272,153 +193,8 @@ PeleC::impose_NSCBC(
        });
     }
   }
-// }
-//     if (
-//       ((q_hi[0] > domhi[0]) || (q_lo[0] < domlo[0])) &&
-//       ((q_hi[1] > domhi[1]) || (q_lo[1] < domlo[1])) &&
-//       ((q_hi[2] > domhi[2]) || (q_lo[2] < domlo[2]))) {
 
-//       if (q_hi[0] > domhi[1]) {
-//         test_keyword_x = PeleC::phys_bc.hi()[0];
-//         i = domhi[0];
-//         x_isign = -1;
-//         x_idx_Mask = i + 1;
-//       } else if (q_lo[0] < domlo[0]) {
-//         test_keyword_x = PeleC::phys_bc.lo()[0];
-//         i = domlo[0];
-//         x_isign = 1;
-//         x_idx_Mask = i;
-//       }
 
-//       if (q_hi[1] > domhi[1]) {
-//         test_keyword_y = PeleC::phys_bc.hi()[1];
-//         j = domhi[1];
-//         y_isign = -1;
-//         y_idx_Mask = j + 1;
-//       } else if (q_lo[1] < domlo[1]) {
-//         test_keyword_y = PeleC::phys_bc.lo()[1];
-//         j = domlo[1];
-//         y_isign = 1;
-//         y_idx_Mask = j;
-//       }
-
-//       if (q_hi[2] > domhi[2]) {
-//         test_keyword_z = PeleC::phys_bc.hi()[2];
-//         k = domhi[2];
-//         z_isign = -1;
-//         z_idx_Mask = k + 1;
-//       } else if (q_lo[2] < domlo[2]) {
-//         test_keyword_z = PeleC::phys_bc.lo()[2];
-//         k = domlo[2];
-//         z_isign = 1;
-//         z_idx_Mask = k;
-//       }
-
-//       x = (static_cast<amrex::Real>(i) + 0.5) * dx;
-//       y = (static_cast<amrex::Real>(j) + 0.5) * dx[1];
-//       z = (static_cast<amrex::Real>(k) + 0.5) * dx[2];
-
-//       // Normal derivative along x
-//       normal_derivative(
-//         i, j, k, 1, x_isign, dx, dpdx, dudx, dvdx, dwdx, drhodx, q, q_l1, q_l2,
-//         q_l3, q_h1, q_h2, q_h3);
-
-//       // Normal derivative along y
-//       normal_derivative(
-//         i, j, k, 2, y_isign, dx[1], dpdy, dudy, dvdy, dwdy, drhody, q, q_l1, q_l2,
-//         q_l3, q_h1, q_h2, q_h3);
-
-//       // Normal derivative along z
-//       normal_derivative(
-//         i, j, k, 3, z_isign, dx[2], dpdz, dudz, dvdz, dwdz, drhodz, q, q_l1, q_l2,
-//         q_l3, q_h1, q_h2, q_h3);
-
-//       // Compute transverse terms for X
-//       compute_transverse_terms(
-//         i, j, k, 1, T1_X, T2_X, T3_X, T4_X, T5_X, dpdx, dudx, dvdx, dwdx,
-//         drhodx, dpdy, dudy, dvdy, dwdy, drhody, dpdz, dudz, dvdz, dwdz, drhodz,
-//         q, q_l1, q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1,
-//         qa_h2, qa_h3);
-
-//       // Compute transverse terms for X
-//       compute_transverse_terms(
-//         i, j, k, 2, T1_Y, T2_Y, T3_Y, T4_Y, T5_Y, dpdx, dudx, dvdx, dwdx,
-//         drhodx, dpdy, dudy, dvdy, dwdy, drhody, dpdz, dudz, dvdz, dwdz, drhodz,
-//         q, q_l1, q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1,
-//         qa_h2, qa_h3);
-
-//       // Compute transverse terms for X
-//       compute_transverse_terms(
-//         i, j, k, 3, T1_Z, T2_Z, T3_Z, T4_Z, T5_Z, dpdx, dudx, dvdx, dwdx,
-//         drhodx, dpdy, dudy, dvdy, dwdy, drhody, dpdz, dudz, dvdz, dwdz, drhodz,
-//         q, q_l1, q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1,
-//         qa_h2, qa_h3);
-
-//       // Calling user target BC values
-//       // x face
-//       if (test_keyword_x == UserBC) {
-//         // bcnormal([x,y,z],U_dummy,U_ext,1,x_isign,time,x_bc_type,x_bc_params,x_bc_target);
-//       } else {
-//         x_bc_type = test_keyword_x;
-//       }
-//       x_bcMask(x_idx_Mask, j, k) = x_bc_type;
-
-//       // y face
-//       if (test_keyword_y == UserBC) {
-//         // bcnormal([x,y,z],U_dummy,U_ext,2,y_isign,time,y_bc_type,y_bc_params,y_bc_target);
-//       } else {
-//         y_bc_type = test_keyword_y;
-//       }
-//       y_bcMask(i, y_idx_Mask, k) = y_bc_type;
-
-//       // z face
-//       if (test_keyword_z == UserBC) {
-//         // bcnormal([x,y,z],U_dummy,U_ext,3,z_isign,time,z_bc_type,z_bc_params,z_bc_target);
-//       } else {
-//         z_bc_type = test_keyword_z;
-//       }
-//       z_bcMask(i, j, z_idx_Mask) = z_bc_type;
-
-//       // Computing the LODI system waves along X
-//       compute_waves(
-//         i, j, k, 1, x_isign, x_bc_type, x_bc_params, x_bc_target, T1_X, T2_X,
-//         T3_X, T4_X, T5_X, L1, L2, L3, L4, L5, dpdx, dudx, dvdx, dwdx, drhodx, q,
-//         q_l1, q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1,
-//         qa_h2, qa_h3);
-
-//       // Computing the LODI system waves along Y
-//       compute_waves(
-//         i, j, k, 2, y_isign, y_bc_type, y_bc_params, y_bc_target, T1_Y, T2_Y,
-//         T3_Y, T4_Y, T5_Y, M1, M2, M3, M4, M5, dpdy, dudy, dvdy, dwdy, drhody, q,
-//         q_l1, q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1,
-//         qa_h2, qa_h3);
-
-//       // Computing the LODI system waves along Z
-//       compute_waves(
-//         i, j, k, 3, z_isign, z_bc_type, z_bc_params, z_bc_target, T1_Z, T2_Z,
-//         T3_Z, T4_Z, T5_Z, N1, N2, N3, N4, N5, dpdz, dudz, dvdz, dwdz, drhodz, q,
-//         q_l1, q_l2, q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1,
-//         qa_h2, qa_h3);
-
-//       // Recomputing ghost-cells values with the LODI waves along X
-//       update_ghost_cells(
-//         i, j, k, x_bc_type, 1, x_isign, dx, domlo, domhi, L1, L2, L3, L4, L5,
-//         uin, uin_l1, uin_l2, uin_l3, uin_h1, uin_h2, uin_h3, q, q_l1, q_l2,
-//         q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1, qa_h2, qa_h3);
-
-//       // Recomputing ghost-cells values with the LODI waves along Y
-//       update_ghost_cells(
-//         i, j, k, y_bc_type, 2, y_isign, dx[1], domlo, domhi, M1, M2, M3, M4, M5,
-//         uin, uin_l1, uin_l2, uin_l3, uin_h1, uin_h2, uin_h3, q, q_l1, q_l2,
-//         q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1, qa_h2, qa_h3);
-
-//       // Recomputing ghost-cells values with the LODI waves along Y
-//       update_ghost_cells(
-//         i, j, k, z_bc_type, 3, z_isign, dx[2], domlo, domhi, N1, N2, N3, N4, N5,
-//         uin, uin_l1, uin_l2, uin_l3, uin_h1, uin_h2, uin_h3, q, q_l1, q_l2,
-//         q_l3, q_h1, q_h2, q_h3, qaux, qa_l1, qa_l2, qa_l3, qa_h1, qa_h2, qa_h3);
-//     }
-//   }
   //--------------------------------------------------------------------------
   // lower X
   //--------------------------------------------------------------------------
@@ -468,11 +244,9 @@ PeleC::impose_NSCBC(
         amrex::GpuArray<amrex::Real, 6> bc_params = {relax_U, relax_V, relax_W, relax_T, beta, sigma};
 
         // Calling user target BC values
-        int x_bc_type; // this variable will be updated in bcnormal()
+        int x_bc_type = -1; // this variable will be updated in bcnormal(). The code will stop if it doesn't get updated
         bcnormal(x_array, s_int.data(), s_ext.data(), 0, 1, time, geom.data(), *lprobparm);
         nscbc_targets(*lprobparm, x_bc_type, bc_params.data(), x_bc_target.data());
-        // bcnormal(x, s_int.data(), x_bc_target.data(), 0, 1, time, geom.data(), *lprobparm);
-        // int x_bc_type = 8; //set as outflow for now // Hard-coded inflow. This variable should be updated in bcnormal()
 
         // Filling bcMask with specific user defined BC type
         if (
@@ -547,14 +321,11 @@ PeleC::impose_NSCBC(
         amrex::GpuArray<amrex::Real, 6> bc_params = {relax_U, relax_V, relax_W, relax_T, beta, sigma};
 
         // Calling user target BC values
-        int x_bc_type = -1; // this variable will be updated in bcnormal()
+        int x_bc_type = -1; // this variable will be updated in bcnormal(). The code will stop if it doesn't get updated
         bcnormal(x_array, s_int.data(), s_ext.data(), 0, -1, time, geom.data(), *lprobparm);
         nscbc_targets(*lprobparm, x_bc_type, bc_params.data(), x_bc_target.data());
-        // bcnormal(x_array, s_int.data(), x_bc_target.data(), 0, -1, time, geom.data(), *lprobparm);
-        // int x_bc_type = 8; // Hard-coded outflow. This variable should be updated in bcnormal()
 
         // Filling bcMask with specific user defined BC type
-        // bcnormal([x,y,z],U_dummy,U_ext,1,-1,time,bc_type,bc_params,bc_target);
         if (
           (j < q_lo[1] + 3) || (j > q_hi[1] - 3) || (k < q_lo[2] + 3) ||
           (k > q_hi[2] - 3)) {
@@ -627,13 +398,11 @@ PeleC::impose_NSCBC(
         amrex::GpuArray<amrex::Real, NVAR> s_ext;
         amrex::GpuArray<amrex::Real, 6> bc_params = {relax_U, relax_V, relax_W, relax_T, beta, sigma};
 
-        // Filling bcMask with specific user defined BC type
-        // bcnormal([x,y,z],U_dummy,U_ext,1,1,time,bc_type,bc_params,bc_target);
-        int y_bc_type = -1;
+        int y_bc_type = -1; // this variable will be updated in bcnormal(). The code will stop if it doesn't get updated
         bcnormal(x_array, s_int.data(), s_ext.data(), 1, 1, time, geom.data(), *lprobparm);
         nscbc_targets(*lprobparm, y_bc_type, bc_params.data(), y_bc_target.data());
-        // int y_bc_type = 7; // Hard-coded inflow. This variable should be updated in bcnormal()
 
+        // Filling bcMask with specific user defined BC type
         if (
           (i < q_lo[0] + 3) || (i > q_hi[0] - 3) || (k < q_lo[2] + 3) ||
           (k > q_hi[2] - 3)) {
@@ -705,13 +474,11 @@ PeleC::impose_NSCBC(
         amrex::GpuArray<amrex::Real, NVAR> s_ext;
         amrex::GpuArray<amrex::Real, 6> bc_params = {relax_U, relax_V, relax_W, relax_T, beta, sigma};
 
-        // Filling bcMask with specific user defined BC type
-        // bcnormal([x,y,z],U_dummy,U_ext,2,-1,time,bc_type,bc_params,bc_target);
-        int y_bc_type = -1;
+        int y_bc_type = -1; // this variable will be updated in bcnormal(). The code will stop if it doesn't get updated
         bcnormal(x_array, s_int.data(), s_ext.data(), 1, -1, time, geom.data(), *lprobparm);
         nscbc_targets(*lprobparm, y_bc_type, bc_params.data(), y_bc_target.data());
-        // int y_bc_type = 8; // Hard-coded outlow. This variable should be updated in bcnormal()
 
+        // Filling bcMask with specific user defined BC type
         if (
           (i < q_lo[0] + 3) || (i > q_hi[0] - 3) || (k < q_lo[2] + 3) ||
           (k > q_hi[2] - 3)) {
@@ -783,13 +550,11 @@ PeleC::impose_NSCBC(
         amrex::GpuArray<amrex::Real, NVAR> s_ext;
         amrex::GpuArray<amrex::Real, 6> bc_params = {relax_U, relax_V, relax_W, relax_T, beta, sigma};
 
-        // Filling bcMask with specific user defined BC type
-        // bcnormal([x,y,z],U_dummy,U_ext,3,1,time,bc_type,bc_params,bc_target);
-        int z_bc_type = -1;
+        int z_bc_type = -1; // this variable will be updated in bcnormal(). The code will stop if it doesn't get updated
         bcnormal(x_array, s_int.data(), s_ext.data(), 2, 1, time, geom.data(), *lprobparm);
         nscbc_targets(*lprobparm, z_bc_type, bc_params.data(), z_bc_target.data());
-        // int z_bc_type = 7; // Hard-coded inflow. This variable should be updated in bcnormal()
 
+        // Filling bcMask with specific user defined BC type
         if (
           (i < q_lo[0] + 3) || (i > q_hi[0] - 3) || (j < q_lo[1] + 3) ||
           (j > q_hi[1] - 3)) {
@@ -861,13 +626,11 @@ PeleC::impose_NSCBC(
         amrex::GpuArray<amrex::Real, NVAR> s_ext;
         amrex::GpuArray<amrex::Real, 6> bc_params = {relax_U, relax_V, relax_W, relax_T, beta, sigma};
 
-        // Filling bcMask with specific user defined BC type
-        // bcnormal([x,y,z],U_dummy,U_ext,3,-1,time,bc_type,bc_params,bc_target)
-        int z_bc_type = -1;
+        int z_bc_type = -1; // this variable will be updated in bcnormal(). The code will stop if it doesn't get updated
         bcnormal(x_array, s_int.data(), s_ext.data(), 2, -1, time, geom.data(), *lprobparm);
         nscbc_targets(*lprobparm, z_bc_type, bc_params.data(), z_bc_target.data());
-        // int z_bc_type = 8; // Hard-coded outflow. This variable should be updated in bcnormal()
 
+        // Filling bcMask with specific user defined BC type
         if (
           (i < q_lo[0] + 3) || (i > q_hi[0] - 3) || (j < q_lo[1] + 3) ||
           (j > q_hi[1] - 3)) {
@@ -890,63 +653,6 @@ PeleC::impose_NSCBC(
       }
     }
   }
-
-  // printf("===== OUTPUTS  ==== \n");
-
-  // printf("x_bcMask \n");
-  // amrex::ParallelFor(bx,
-  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-  //   printf("%i ", x_bcMask(i, j, k)); 
-  // });
-  // printf("\n");
-
-  // printf("y_bcMask \n");
-  // amrex::ParallelFor(bx,
-  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-  //   printf("%i ", y_bcMask(i, j, k)); 
-  // });
-  // printf("\n");
-
-  // printf("z_bcMask \n");
-  // amrex::ParallelFor(bx,
-  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-  //   printf("%i ", z_bcMask(i, j, k)); 
-  // });
-  // printf("\n");
-
-  // printf("q \n");
-  // amrex::ParallelFor(bx,
-  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-  //   for(int n=0;n<NVAR;n++){
-  //     printf("%f \n", q(i, j, k, n));
-  //     if(q(i, j, k, n) != q(i, j, k, n))
-  //       amrex::Abort("Found NaN in the q array. Stopping...");
-  //   }
-  //   // printf("%e ", q(i, j, k, n)); 
-  // });
-  // printf("\n");
-
-  // // printf("qaux \n");
-  // amrex::ParallelFor(bx,
-  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-  //   for(int n=0;n<NVAR;n++)
-  //     if(qaux(i, j, k, n) != qaux(i, j, k, n))
-  //       amrex::Abort("Found NaN in the qaux array. Stopping...");
-  //   // printf("%e ", qaux(i, j, k, n)); 
-  // });
-  // printf("\n");
-
-  // // printf("uin \n");
-  // amrex::ParallelFor(bx,
-  // [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-  //   for(int n=0;n<NVAR;n++)
-  //     if(uin(i, j, k, n) != uin(i, j, k, n))
-  //       amrex::Abort("Found NaN in the uin array. Stopping...");
-  //   // for(int n=0;n<NVAR;n++)
-  //   // printf("%e ", uin(i, j, k, NVAR-1)); 
-  // });
-  // // printf("\n");
-  // // amrex::Abort("Stopping...");
 }
 
 void
