@@ -61,7 +61,7 @@ pc_initdata(
   amrex::Real peak_gaussian = 1/sigma/(2.*pi)*exp(-0.5*pow((mean - mean)/sigma, 2));
 
   // gaussian_function(x,mean,sigma,gaussian);
-  gaussian =  1/sigma/(2.*pi)*exp(-0.5*pow((x[0] - mean)/sigma, 2));
+  gaussian =  1/sigma/(2.*pi)*exp(-0.5*pow((x[prob_parm.direction] - mean)/sigma, 2));
   amrex::Real P_local = p + gaussian/peak_gaussian * peak_pressure;  
   // printf("Pressure %f \n", P_local);
 
@@ -103,13 +103,13 @@ bcnormal(
   amrex::Real bc_params[6] = PeleC::h_prob_parm_device->bc_params_init,
   amrex::Real bc_target[6] = PeleC::h_prob_parm_device->bc_target_init)
 {
-  if(idir == 0){
+  // if(idir == 0){
     for (int n = 0; n < NVAR; n++){
       s_ext[n] = prob_parm.air_state[n];
       // printf("s_ext[%i] = %f\n", n, s_ext[n]);
     }
 
-  }
+  // }
 }
 
 AMREX_GPU_DEVICE

@@ -55,6 +55,7 @@ amrex_probinit(
     pp.query("pamb"  , PeleC::h_prob_parm_device->pamb);
     pp.query("T_in"  , PeleC::h_prob_parm_device->T_in);
     pp.query("vn_in" , PeleC::h_prob_parm_device->vn_in);
+    pp.query("direction" , PeleC::h_prob_parm_device->direction);
 
   init_bc();
 

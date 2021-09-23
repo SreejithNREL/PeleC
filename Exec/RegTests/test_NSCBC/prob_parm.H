@@ -14,6 +14,8 @@ struct ProbParmDevice
   amrex::Real vn_in = 0.2;
   amrex::Real pamb  = 1.0e+6; //1 bar
 
+  int direction = 0;
+
   amrex::GpuArray<amrex::Real, NVAR> air_state = {{0.0}};
 
   amrex::Real bc_params_init[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};

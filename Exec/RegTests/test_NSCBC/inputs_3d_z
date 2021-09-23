@@ -1,22 +1,22 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-max_step = 1
+max_step = 100000
 stop_time = 1.0e-3
 #pelec.fixed_dt = 2e-7
 # PROBLEM SIZE & GEOMETRY
-geometry.is_periodic = 0 1 1
+geometry.is_periodic = 1 1 0
 geometry.coord_sys   = 0  # 0 => cart, 1 => RZ  2=>spherical
-geometry.prob_lo     =  -0.1 -0.00625 -0.00625
-geometry.prob_hi     =   0.1  0.00625  0.00625
+geometry.prob_lo     =  -0.00625 -0.00625 -0.1
+geometry.prob_hi     =   0.00625  0.00625  0.1
 # use with single level
 #amr.n_cell           =  64 8
-amr.n_cell           =  64  4  4
+amr.n_cell           =   4  4 64
 
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 
-pelec.lo_bc       =  "UserBC" "Interior" "Interior"
-pelec.hi_bc       =  "UserBC" "Interior" "Interior"
+pelec.lo_bc       =  "Interior" "Interior" "UserBC"
+pelec.hi_bc       =  "Interior" "Interior" "UserBC"
 
 # WHICH PHYSICS
 pelec.nscbc_adv = 1
@@ -65,6 +65,6 @@ amr.derive_plot_vars = x_velocity y_velocity magvel magvort pressure
 prob.T_in = 300.0
 prob.vn_in = 0.0e+0
 prob.pamb = 1.0e+6
-prob.direction = 0
+prob.direction = 2
 
 transport.const_viscosity = 1.5e-1 # [cm2/s] 
