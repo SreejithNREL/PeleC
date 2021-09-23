@@ -665,11 +665,11 @@ void update_ghost_cells(
     amrex::Real eos_state_rho = q(ii, jj, kk, QRHO);
     amrex::Real eos_state_massfrac[NUM_SPECIES];
     for (int n = 0; n < NUM_SPECIES; n++) {
-      eos_state_massfrac[n] = q(ii, jj, kk, QFS + n - 1);
+      eos_state_massfrac[n] = q(ii, jj, kk, QFS + n);
     }
     amrex::Real eos_state_aux[NUM_AUX];
     for (int n = 0; n < NUM_AUX; n++) {
-      eos_state_aux[n] = q(ii, jj, kk, QFX + n - 1);
+      eos_state_aux[n] = q(ii, jj, kk, QFX + n);
     }
 
     amrex::Real eos_state_T, eos_state_e, eos_state_gamma, eos_state_cs;
@@ -706,8 +706,8 @@ void update_ghost_cells(
                             q(ii, jj, kk, QV) * q(ii, jj, kk, QV) +
                             q(ii, jj, kk, QW) * q(ii, jj, kk, QW)));
     uin(ii, jj, kk, UTEMP) = eos_state_T;
-    for (int n = 1; n < NUM_SPECIES; n++) {
-      uin(ii, jj, kk, UFS + n - 1) = eos_state_rho * eos_state_massfrac[n];
+    for (int n = 0; n < NUM_SPECIES; n++) {
+      uin(ii, jj, kk, UFS + n) = eos_state_rho * eos_state_massfrac[n];
     }
   }
 }
