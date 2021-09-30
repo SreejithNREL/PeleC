@@ -60,8 +60,10 @@ pc_initdata(
   // gaussian_function(mean,mean,sigma,gaussian);
   amrex::Real peak_gaussian = 1/sigma/(2.*pi)*exp(-0.5*pow((mean - mean)/sigma, 2));
 
+  amrex::Real r = sqrt(pow((mean-x[0]),2)+pow((mean-x[1]),2)+pow((mean-x[2]),2));
+
   // gaussian_function(x,mean,sigma,gaussian);
-  gaussian =  1/sigma/(2.*pi)*exp(-0.5*pow((x[prob_parm.direction] - mean)/sigma, 2));
+  gaussian =  1/sigma/(2.*pi)*exp(-0.5*pow((r - mean)/sigma, 2));
   amrex::Real P_local = p + gaussian/peak_gaussian * peak_pressure;  
   // printf("Pressure %f \n", P_local);
 
@@ -152,7 +154,7 @@ nscbc_targets(
     amrex::Real relax_T = -0.2;
     //parameters for outflow
     amrex::Real beta = -0.6;
-    amrex::Real sigma = 0.0;
+    amrex::Real sigma = 0.8;
 
 
     bc_params[0] = relax_U;
