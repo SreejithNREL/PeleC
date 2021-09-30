@@ -75,48 +75,55 @@ PeleC::impose_NSCBC(
     if (((q_hi[0] > domhi[0]) || (q_lo[0] < domlo[0])) &&
         ((q_hi[1] > domhi[1]) || (q_lo[1] < domlo[1])) &&
         ((q_hi[2] > domhi[2]) || (q_lo[2] < domlo[2]))) {
-      amrex::ParallelFor(bx,
-        [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        if (((i == domlo[0]) || (i == domhi[0])) &&
-            ((j == domlo[1]) || (j == domhi[1])) &&
-            ((k == domlo[2]) || (k == domhi[2]))) {
+
           int test_keyword_x, test_keyword_y, test_keyword_z;
           int x_isgn, y_isgn, z_isgn;
           int x_idx_Mask, y_idx_Mask, z_idx_Mask;
-          if (i == domhi[0]) {
+          int i,j,k;
+
+          if (q_hi[0] > domhi[0]) {
+            i = domhi[0];
             x_isgn = -1;
             test_keyword_x = bcs.hi(0);
             x_idx_Mask = i + 1;
-          } else {
+          } else if(q_lo[0] < domlo[0]){
+            i = domlo[0];
             x_isgn = 1;
             test_keyword_x = bcs.lo(0);
             x_idx_Mask = i;
           }
-          if (j == domhi[1]) {
+          // if (j == domhi[1]) {
+          if (q_hi[1] > domhi[1]) {
+            j = domhi[1];
             y_isgn = -1;
             test_keyword_y = bcs.hi(1);
             y_idx_Mask = j + 1;
-          } else {
+          } else if(q_lo[1] < domlo[1]){
+            j = domlo[1];
             y_isgn = 1;
             test_keyword_y = bcs.lo(1);
             y_idx_Mask = j;
           }
-          if (k == domhi[2]) {
+          // if (k == domhi[2]) {
+          if (q_hi[2] > domhi[2]) {
+            k = domhi[2];
             z_isgn = -1;
             test_keyword_z = bcs.hi(2);
             z_idx_Mask = k + 1;
-          } else {
+          } else if(q_lo[2] < domlo[2]){
+            k = domlo[2];
             z_isgn = 1;
             test_keyword_z = bcs.lo(2);
             z_idx_Mask = k;
           }
+
           // Normal derivative along x
           amrex::Real dpdx, dudx, dvdx, dwdx, drhodx;
           normal_derivative(i, j, k, 0, x_isgn, dx[0], dpdx, dudx, dvdx, dwdx, drhodx, q);
           // Normal derivative along y
           amrex::Real dpdy, dudy, dvdy, dwdy, drhody;
           normal_derivative(i, j, k, 1, y_isgn, dx[1], dpdy, dudy, dvdy, dwdy, drhody, q);
-          // Normal derivative along x
+          // Normal derivative along z
           amrex::Real dpdz, dudz, dvdz, dwdz, drhodz;
           normal_derivative(i, j, k, 2, z_isgn, dx[2], dpdz, dudz, dvdz, dwdz, drhodz, q);
 
@@ -167,19 +174,19 @@ PeleC::impose_NSCBC(
             bcnormal(x, s_int.data(), s_ext.data(), 0, x_isgn, time, geom.data(), *lprobparm);
             nscbc_targets(*lprobparm, x_bc_type, bc_params_x.data(), x_bc_target.data());
           }
-          x_bcMask(i, j, k) = x_bc_type;
+          x_bcMask(x_idx_Mask, j, k) = x_bc_type;
           if (test_keyword_y == 6) {
             y_bc_type = -1; // this variable will be updated in bcnormal(). The code will stop if it doesn't get updated
             bcnormal(x, s_int.data(), s_ext.data(), 1, y_isgn, time, geom.data(), *lprobparm);
             nscbc_targets(*lprobparm, y_bc_type, bc_params_y.data(), y_bc_target.data());
           }
-          y_bcMask(i, j, k) = y_bc_type;
+          y_bcMask(i, y_idx_Mask, k) = y_bc_type;
           if (test_keyword_x == 6) {
             z_bc_type = -1; // this variable will be updated in bcnormal()
             bcnormal(x, s_int.data(), s_ext.data(), 2, y_isgn, time, geom.data(), *lprobparm);
             nscbc_targets(*lprobparm, z_bc_type, bc_params_z.data(), z_bc_target.data());
           }
-          z_bcMask(i, j, k) = z_bc_type;
+          z_bcMask(i, j, z_idx_Mask) = z_bc_type;
           compute_waves(i, j, k, 0, x_isgn, x_bc_type, problen.data(), bc_params_x.data(),
             x_bc_target.data(), Tx.data(), Lx.data(), dpdx, dudx, dvdx, dwdx, drhodx, q, qaux);
           compute_waves(i, j, k, 1, y_isgn, y_bc_type, problen.data(), bc_params_y.data(),
@@ -189,8 +196,7 @@ PeleC::impose_NSCBC(
           update_ghost_cells(i, j, k, x_bc_type, 0, x_isgn, dx[0], domlo, domhi, Lx.data(), uin, q, qaux);
           update_ghost_cells(i, j, k, y_bc_type, 1, y_isgn, dx[1], domlo, domhi, Ly.data(), uin, q, qaux);
           update_ghost_cells(i, j, k, z_bc_type, 2, z_isgn, dx[2], domlo, domhi, Lz.data(), uin, q, qaux);
-        }
-       });
+
     }
   }
 
@@ -605,7 +611,7 @@ PeleC::impose_NSCBC(
 
         // Normal derivative along z
         amrex::Real dpdz, dudz, dvdz, dwdz, drhodz;
-        normal_derivative(i, j, k, 2, -1, dx[1], dpdz, dudz, dvdz, dwdz, drhodz, q);
+        normal_derivative(i, j, k, 2, -1, dx[2], dpdz, dudz, dvdz, dwdz, drhodz, q);
 
         amrex::Real dpdx, dudx, dvdx, dwdx, drhodx;
         // Tangential derivative along x
