@@ -220,7 +220,7 @@ void compute_transverse_terms(
   T[1] = T2;
   T[2] = T3;
   T[3] = T4;
-  T[5] = T5;
+  T[4] = T5;
 }
 
 AMREX_GPU_DEVICE
@@ -284,7 +284,7 @@ void update_ghost_cells(
   const amrex::Array4<amrex::Real>& qaux)
 {
   int idx_gc1, idx_gc2, idx_gc3, idx_gc4, idx_int1, idx_int2, idx_int3;
-  int idx_start, idx_end, hop, n, local_index;
+  int idx_start, idx_end, local_index;
   amrex::Real drho, du, dv, dw, dp, wall_sign;
   const amrex::Real small = 1.e-8;
   AMREX_ASSERT((idir == 0) || (idir == 1) || (idir == 2));
