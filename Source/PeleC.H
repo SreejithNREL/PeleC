@@ -481,6 +481,50 @@ public:
   volWgtSquaredSumDiff(int comp, amrex::Real time, bool local = false);
   amrex::Real
   maxDerive(const std::string& name, amrex::Real time, bool local = false);
+  amrex::Real
+  minDerive(const std::string& name, amrex::Real time, bool local = false);
+
+  // derives that need variables part of this class (e.g. trans_parm)
+  static void pc_derviscosity(
+    const amrex::Box& bx,
+    amrex::FArrayBox& derfab,
+    int dcomp,
+    int ncomp,
+    const amrex::FArrayBox& datfab,
+    const amrex::Geometry& geomdata,
+    amrex::Real time,
+    const int* bcrec,
+    const int level);
+  static void pc_derbulkviscosity(
+    const amrex::Box& bx,
+    amrex::FArrayBox& derfab,
+    int dcomp,
+    int ncomp,
+    const amrex::FArrayBox& datfab,
+    const amrex::Geometry& geomdata,
+    amrex::Real time,
+    const int* bcrec,
+    const int level);
+  static void pc_derconductivity(
+    const amrex::Box& bx,
+    amrex::FArrayBox& derfab,
+    int dcomp,
+    int ncomp,
+    const amrex::FArrayBox& datfab,
+    const amrex::Geometry& geomdata,
+    amrex::Real time,
+    const int* bcrec,
+    const int level);
+  static void pc_derdiffusivity(
+    const amrex::Box& bx,
+    amrex::FArrayBox& derfab,
+    int dcomp,
+    int ncomp,
+    const amrex::FArrayBox& datfab,
+    const amrex::Geometry& geomdata,
+    amrex::Real time,
+    const int* bcrec,
+    const int level);
 
   // static int NVAR;
   static int Density, Xmom, Ymom, Zmom, Eden, Eint, Temp;
@@ -600,7 +644,7 @@ protected:
   static amrex::Real
   enforce_min_density(amrex::MultiFab& S_old, const amrex::MultiFab& S_new);
 
-  amrex::Real clean_state(amrex::MultiFab& S);
+  amrex::Real clean_state(const amrex::MultiFab& S);
 
   static amrex::Real
   clean_state(const amrex::MultiFab& S, amrex::MultiFab& S_old);
@@ -614,7 +658,11 @@ protected:
   amrex::Real
   sumDerive(const std::string& name, amrex::Real time, bool local = false);
 
+  int find_datalog_index(const std::string& logname);
+
   void sum_integrated_quantities();
+
+  void monitor_extrema();
 
   void write_info();
 
