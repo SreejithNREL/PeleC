@@ -24,10 +24,13 @@ FSANITIZER = FALSE
 THREAD_SANITIZER = FALSE
 
 # PeleC
+USE_REACT = TRUE
 USE_EB = TRUE
+USE_TURBINFLOW = TRUE
 USE_MASA = FALSE
 Eos_Model := Fuego
 Chemistry_Model := TPRF_98species_gpu
+# Chemistry_Model := air
 Transport_Model := Simple
 
 # GNU Make

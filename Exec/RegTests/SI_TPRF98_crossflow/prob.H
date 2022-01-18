@@ -79,115 +79,12 @@ bcnormal(
   
   if(idir == 0){
     if(PeleC::h_prob_parm_device->turbulence){
-      // int i = (x[0] + 0.3+dx[0]*4)/(dx[0]);
-      // int k = (x[2] + 0.0125)/dx[2];
-      // printf("i = %i x = %f  j = %i  k = %i \n",i,x[0],j,k);
 
-      // int n_cell[3] = {0};
-      // amrex::ParmParse parse1("amr");
-      // parse1.query("n_cell", n_cell);
-      // printf("nx = %i ny = %i nz = %i \n",n_cell[0],n_cell[1],n_cell[2] );
+      // Add fluctuations to mean velocity
+        velx = s_ext[UMX] + PeleC::h_prob_parm_device->vn_in;
+        vely = s_ext[UMY];
+        velz = s_ext[UMZ];
 
-      // amrex::ParmParse parse2("geometry");
-      // amrex::Real prob_lo_global[3] = {0};
-      // parse2.query("prob_lo", prob_lo_global);
-      // printf("n_cell = %i %i %i\n", n_cell[0],n_cell[1],n_cell[2]);
-      // printf("prob_lo_global = %f %f %f\n", prob_lo_global[0],prob_lo_global[1],prob_lo_global[2]);
-      // amrex::Abort();
-
-
-      //I am starting in 2D so I have to match only the cell index for y 
-      int j = (x[1] - 1.02)/dx[1];
-      if(j > 255)j=255;
-      if(j < 0)j=0;
-      // j = 0;
-      
-      //  int k = 0;
-      int k = (x[2] + 0.8)/dx[2];
-      // printf("k = %i \n", k);
-      if(k > 255)k=255;
-      if(k < 0)k=0;
-
-
-      amrex::Real u[3] = {0.0};
-      amrex::Real molefrac[NUM_SPECIES] = {0.0};
-      amrex::Real massfrac[NUM_SPECIES] = {0.0};
-
-      amrex::Real t = time + PeleC::h_prob_parm_device->time_init_turb;
-      // amrex::Print() << "Overall time = " << t << "time = " << time << "time from plt = " << PeleC::h_prob_parm_device->time_init_turb << std::endl;
-      int increment = PeleC::h_prob_parm_device->nt; //number of cells to read in x every time read_turbulence_bc() is called
-
-      
-      if(PeleC::h_prob_parm_device->first_time){
-        // printf("Reading turbulence for the first time \n");
-        // amrex::Real t = PeleC::h_prob_parm_device->time_init_turb; //0.00314002107022254; //time;
-        
-        //find index for time direction based on current time
-        int idx = (t * PeleC::h_prob_parm_device->vn_in / PeleC::h_prob_parm_device->dx_turb) - 2;
-        amrex::Print() << "Reading BC data for the first time" <<std::endl;
-        
-        if(idx < 0)idx = 0;
-        // read file for the first time based on current simulation time
-        PeleC::h_prob_parm_device->x_index[0] = idx;
-        PeleC::h_prob_parm_device->x_index[1] = idx + increment;
-
-        // printf("target time = %e \n", t);
-        // printf("Index range: %i and %i \n",PeleC::h_prob_parm_device->x_index[0],PeleC::h_prob_parm_device->x_index[1]);
-        read_turbulent_bc(PeleC::h_prob_parm_device->x_index,PeleC::h_prob_parm_device->vn_in);
-        PeleC::h_prob_parm_device->first_time = false;
-      }
-
-      if(t > PeleC::h_prob_parm_device->d_xarray_turb[increment-1] + PeleC::h_prob_parm_device->recycled_turb_file){
-
-        amrex::Print() << "Reading new turbulence data" << std::endl;
-        
-        // if current time is greater than the time read from file, read it again with the new data
-        PeleC::h_prob_parm_device->x_index[0] = PeleC::h_prob_parm_device->x_index[1]-2;
-        PeleC::h_prob_parm_device->x_index[1] = PeleC::h_prob_parm_device->x_index[1] + increment - 2;
-        //start reading from time zero if the end of HIT BC was reached
-        if(t > 1024 * PeleC::h_prob_parm_device->dx_turb / PeleC::h_prob_parm_device->vn_in + PeleC::h_prob_parm_device->recycled_turb_file){
-          PeleC::h_prob_parm_device->recycled_turb_file += 1024 * PeleC::h_prob_parm_device->dx_turb / PeleC::h_prob_parm_device->vn_in ;
-          amrex::Print() << "Restarting HIT BC..." <<std::endl;
-          PeleC::h_prob_parm_device->x_index[0] = 0;
-          PeleC::h_prob_parm_device->x_index[1] = increment;        
-        }
-        read_turbulent_bc(PeleC::h_prob_parm_device->x_index,PeleC::h_prob_parm_device->vn_in);
-      }
-
-
-      // if(prob_parm.turbulence){
-
-      amrex::Real uinterp[3] = {0.0};
-
-      // Interpolation factors
-      amrex::Real mod[3] = {0.0};
-      int idx[3] = {0};
-      int idxp1[3] = {0};
-      amrex::Real slp[3] = {0.0};
-
-
-      mod[0] = std::fmod(t, PeleC::h_prob_parm_device->Lxturb);
-      locate(PeleC::h_prob_parm_device->d_xarray_turb, PeleC::h_prob_parm_device->ires_x, mod[0], idx[0]);
-      idxp1[0] = (idx[0] + 1) % PeleC::h_prob_parm_device->ires_x;
-      slp[0] = (mod[0] - PeleC::h_prob_parm_device->d_xarray_turb[idx[0]]) / PeleC::h_prob_parm_device->d_xdiff_turb[idx[0]];
-
-      const amrex::Real f0 = (1 - slp[0]) * (1 - slp[1]) * (1 - slp[2]);
-      const amrex::Real f1 = slp[0] * (1 - slp[1]) * (1 - slp[2]);
-
-      int nx = PeleC::h_prob_parm_device->ires_x;
-      int ny = PeleC::h_prob_parm_device->ires_y;
-      int nz = PeleC::h_prob_parm_device->ires_z;
-
-      // Interpolate data in time direction
-      for (int iscal=0;iscal<3;iscal++){
-        uinterp[iscal] = PeleC::h_prob_parm_device->d_data_ic_turb[idx[0]   + nx*j   + nx*ny*k   + iscal*nx*ny*nz]*f0 + 
-                         PeleC::h_prob_parm_device->d_data_ic_turb[idxp1[0] + nx*j   + nx*ny*k   + iscal*nx*ny*nz]*f1;
-      }
-
-
-      velx = uinterp[0] + PeleC::h_prob_parm_device->vn_in;
-      vely = uinterp[1];
-      velz = uinterp[2];      
     }
     else{
       velx = 0.0 + PeleC::h_prob_parm_device->vn_in;
@@ -196,7 +93,7 @@ bcnormal(
     }
 
     rho = prob_parm.fuel_state[URHO];
-
+    //printf("velx = %f vely = %f velz = %f \n",velx,vely,velz);
     s_ext[URHO]  = rho;
     s_ext[UMX]   = rho*velx;
     s_ext[UMY]   = rho*vely;
@@ -209,7 +106,7 @@ bcnormal(
 
     // printf("End of turbulent BC \n");
   }
-  else if(idir == 1){
+  else{
     amrex::Real velx = 0.0;
     amrex::Real vely = 0.0;
     amrex::Real velz = 0.0;

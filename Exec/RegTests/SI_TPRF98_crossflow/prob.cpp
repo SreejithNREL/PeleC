@@ -1,4 +1,5 @@
 #include "prob.H"
+#include <turbinflow.H>
 
 void
 init_bc()
@@ -114,9 +115,6 @@ extern "C"
       pp.query("turbulence"     , PeleC::h_prob_parm_device->turbulence);
       pp.query("init_kernel"    , PeleC::h_prob_parm_device->init_kernel);
       pp.query("iname"          , PeleC::prob_parm_host->iname);
-      pp.query("turb_ic"        , PeleC::prob_parm_host->turb_ic);
-      pp.query("dx_turb"        , PeleC::h_prob_parm_device->dx_turb); //spatial grid resolution in the turbulence inflow data generated in S3D
-      pp.query("nt"             , PeleC::h_prob_parm_device->nt); //number of points to be read in time direction each time we read the file containing turbulence stuff
       pp.query("time_init_turb" , PeleC::h_prob_parm_device->time_init_turb); 
       pp.query("restart"        , PeleC::h_prob_parm_device->restart);
 
@@ -124,8 +122,48 @@ extern "C"
       PeleC::h_prob_parm_device->L[1] = probhi[1] - problo[1];
       PeleC::h_prob_parm_device->L[2] = probhi[2] - problo[2];
 
-      // PeleC::h_prob_parm_device->fuel_state.resize(NVAR);
-      // PeleC::h_prob_parm_device->kernel_state.resize(NVAR);
+      if (pp.countval("turb_file") > 0) {
+#if AMREX_SPACEDIM==2
+    amrex::Abort("Turbulence inflow unsupported in 2D.");
+#endif
+
+        PeleC::prob_parm_host->do_turb = true;
+
+        std::string turb_file = "";
+        pp.query("turb_file", turb_file);
+        amrex::Real turb_scale_loc = 1.0;
+        pp.query("turb_scale_loc", turb_scale_loc);
+        amrex::Real turb_scale_vel = 1.0;
+        pp.query("turb_scale_vel", turb_scale_vel);
+        pp.query("meanFlowDir", PeleC::h_prob_parm_device->meanFlowDir);
+
+        // Hold nose here - required because of dynamically allocated data in tp
+        AMREX_ASSERT_WITH_MESSAGE(
+        PeleC::h_prob_parm_device->tp.tph == nullptr,
+          "Can only be one TurbParmHost");
+        PeleC::h_prob_parm_device->tp.tph = new TurbParmHost;
+
+        amrex::Vector<amrex::Real> turb_center = {
+        {0.5 * (probhi[0] + problo[0]), 0.5 * (probhi[1] + problo[1])}};
+        pp.queryarr("turb_center", turb_center);
+        AMREX_ASSERT_WITH_MESSAGE(turb_center.size() == 2, "turb_center must have two elements");
+        for (int n = 0; n < turb_center.size(); ++n) {
+          turb_center[n] *= turb_scale_loc;
+        }
+
+        int turb_nplane = 0;
+        pp.query("turb_nplane", turb_nplane);
+        AMREX_ASSERT(TurbParm->nplane > 0);
+
+        amrex::Real turb_conv_vel = 0;
+        pp.query("turb_conv_vel", turb_conv_vel);
+        AMREX_ASSERT(TurbParm->turb_conv_vel > 0);
+
+        init_turbinflow(
+        turb_file, turb_scale_loc, turb_scale_vel, turb_center, turb_conv_vel,
+        turb_nplane, PeleC::h_prob_parm_device->tp);
+      }
+
 
       if (PeleC::h_prob_parm_device->restart) {
         amrex::Print() << "Skipping input file reading and assuming restart."

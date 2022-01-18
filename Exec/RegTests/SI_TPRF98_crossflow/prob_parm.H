@@ -4,6 +4,7 @@
 #include <AMReX_REAL.H>
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_GpuMemory.H>
+#include <turbinflow.H>
 
 struct ProbParmDevice
 {
@@ -60,12 +61,16 @@ struct ProbParmDevice
   amrex::Real Lyturb = 0.0;
   amrex::Real Lzturb = 0.0;
 
+  amrex::GpuArray<bool,2*AMREX_SPACEDIM> turb_ok = {{false}};
+  TurbParm tp;
+  int  meanFlowDir = 1;
   //==================================
 };
 
 struct ProbParmHost
 {
 
+  bool do_turb = false;
 // == variables to initialize turbulence ==
   amrex::Vector<amrex::Real> T_xinput;
   amrex::Vector<amrex::Real> T_xarray;
