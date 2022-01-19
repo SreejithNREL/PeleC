@@ -1,13 +1,13 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
 stop_time = 1.0e-03
-max_step = 1
+max_step = 100
 
 # PROBLEM SIZE & GEOMETRY
 geometry.is_periodic = 0 0 0
 geometry.coord_sys   = 0  # 0 => cart, 1 => RZ  2=>spherical
 geometry.prob_lo     =   -0.4       1.02     -0.8
 geometry.prob_hi     =    1.2       2.62      0.8
-amr.n_cell           =    256       256       256
+amr.n_cell           =    32       32       32
 
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
@@ -29,17 +29,20 @@ prob.T_in           = 343.0
 prob.phi_in         = 1.0
 prob.egr            = 0.1
 prob.iname          = initial_conditions/egr10/3micron/t0.400mus.dat
-prob.init_kernel    = true
-prob.turb_ic        = channel_upsl_9_ltdf_20_stoich_etrf_10egr_big_domain.dat
+prob.init_kernel    = false
 prob.turbulence     = true
 prob.vn_in          = 1000.0      # [cm/s]
-# prob.dx_turb        = 0.03125
-prob.dx_turb        = 0.0625
-prob.restart        = false
-prob.nt             = 8 #n points in time direction to read each time
-prob.time_init_turb = 1.0e-3 # 0.00130002385100452
+# prob.time_init_turb = 1.0e-3 # 0.00130002385100452
 # pele.pltfile_for_init = plt21288
-# pele.pltfile_for_init = plt37229
+
+#Turbulent inflow parameters
+prob.turb_file = Turb_upsl_9_ltdf_20_stoich_etrf_10egr_big_domain
+prob.turb_scale_loc = 0.01
+prob.turb_scale_vel = 100.0
+prob.turb_center = 1.82 0.0
+prob.turb_conv_vel = 1000.
+prob.turb_nplane = 20  #n points in time direction to read each time
+
 
 # DIAGNOSTICS & VERBOSITY
 pelec.sum_interval = 1       # coarse time steps between computing mass on domain
@@ -53,7 +56,7 @@ amr.grid_log       = grdlog  # name of grid logging file
 # amrex.fpe_trap_zero=1
 
 # REFINEMENT / REGRIDDING 
-amr.max_level       = 1          # maximum level number allowed
+amr.max_level       = 0          # maximum level number allowed
 amr.ref_ratio       = 2 2 2 2    # refinement ratio
 amr.regrid_int      = 50        # how often to regrid
 amr.n_error_buf     = 2          # number of buffer cells in error est
@@ -112,8 +115,8 @@ cvode.solve_type = dense_direct
 ode.verbosity    = 2
 ode.analytical_jacobian = 1
 pelec.chem_integrator = ReactorCvode
-ode.rtol         = 1e-08
-ode.atol         = 1e-14
+#ode.rtol         = 1e-08
+#ode.atol         = 1e-14
 ode.implicit_solve=0
 ode.use_erkstep=1
 
