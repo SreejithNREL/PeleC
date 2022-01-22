@@ -37,7 +37,37 @@ struct TaggingParm
 
   amrex::Real vfracerr = 1.0e10;
   int max_vfracerr_lev = 10;
+
+  amrex::Real dom_lbnd = 1.0e10;
+  amrex::Real dom_hbnd = 1.0e10;
+  int max_dom_bnd_lev = 10;
 };
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+void
+tag_error_region(
+  const int i,
+  const int j,
+  const int k,
+  amrex::GeometryData const& geomdata,
+  const amrex::Real dom_lbnd,
+  const amrex::Real dom_hbnd,
+  amrex::Array4<char> const& tag,
+  char tagval) noexcept
+{
+  const amrex::Real* prob_lo = geomdata.ProbLo();
+  // const amrex::Real* prob_hi = geomdata.ProbHi();
+  const amrex::Real* dx = geomdata.CellSize();
+  const amrex::Real x = prob_lo[0] + (i + 0.5) * dx[0];
+  const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
+  const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
+
+  // Tag on regions of high field values
+  if ((dom_lbnd < x) && (x < dom_hbnd)) {
+    tag(i, j, k) = tagval;
+  }
+}
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE

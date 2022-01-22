@@ -38,4 +38,8 @@ PeleC::read_tagging_params()
 
   pp.query("vfracerr", tagging_parm->vfracerr);
   pp.query("max_vfracerr_lev", tagging_parm->max_vfracerr_lev);
+
+  pp.query("dom_lbnd", tagging_parm->dom_lbnd);
+  pp.query("dom_hbnd", tagging_parm->dom_hbnd);
+  pp.query("max_dom_bnd_lev", tagging_parm->max_dom_bnd_lev);
 }
