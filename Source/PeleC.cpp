@@ -1580,6 +1580,18 @@ PeleC::errorEst(
       const int ncp = S_derData.nComp();
       const int* bc = bcs[0].data();
 
+      // ---------- Tagging domain region -------------
+      if (level < tagging_parm->max_dom_bnd_lev) {
+        const amrex::Real lbnd = tagging_parm->dom_lbnd;
+        const amrex::Real hbnd = tagging_parm->dom_hbnd;
+        amrex::ParallelFor(
+          tilebox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            const auto geomdata = geom.data();
+            tag_error_region(i, j, k, geomdata, lbnd, hbnd, tag_arr, tagval);
+          });
+      }
+      // -----------------------------------------------
+
       // Tagging density
       if (level < tagging_parm->max_denerr_lev) {
         const amrex::Real captured_denerr = tagging_parm->denerr;
