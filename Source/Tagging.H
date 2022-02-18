@@ -38,8 +38,14 @@ struct TaggingParm
   amrex::Real vfracerr = 1.0e10;
   int max_vfracerr_lev = 10;
 
-  amrex::Real dom_lbnd = 1.0e10;
-  amrex::Real dom_hbnd = 1.0e10;
+  amrex::Real dom_lbnd_x = 1.0e10;
+  amrex::Real dom_hbnd_x = 1.0e10;
+  amrex::Real dom_lbnd_y = 1.0e10;
+  amrex::Real dom_hbnd_y = 1.0e10;
+  amrex::Real dom_lbnd_z = 1.0e10;
+  amrex::Real dom_hbnd_z = 1.0e10;
+  amrex::Vector<amrex::Real> dom_lbnd[AMREX_SPACEDIM] = {{1.0e10}};
+ // amrex::Vector<amrex::Real> dom_hbnd[AMREX_SPACEDIM] = {{1.0e10}};
   int max_dom_bnd_lev = 10;
 };
 
@@ -51,8 +57,12 @@ tag_error_region(
   const int j,
   const int k,
   amrex::GeometryData const& geomdata,
-  const amrex::Real dom_lbnd,
-  const amrex::Real dom_hbnd,
+  amrex::Real x_lo,
+  amrex::Real x_hi,
+  amrex::Real y_lo,
+  amrex::Real y_hi,
+  amrex::Real z_lo,
+  amrex::Real z_hi,
   amrex::Array4<char> const& tag,
   char tagval) noexcept
 {
@@ -63,9 +73,15 @@ tag_error_region(
   const amrex::Real y = prob_lo[1] + (j + 0.5) * dx[1];
   const amrex::Real z = prob_lo[2] + (k + 0.5) * dx[2];
 
+
   // Tag on regions of high field values
-  if ((dom_lbnd < x) && (x < dom_hbnd)) {
-    tag(i, j, k) = tagval;
+  if ((x_lo < x) && (x < x_hi) && (y_lo < y) && (y < y_hi)
+#if AMREX_SPACEDIM == 3
+      && (z_lo < z) && (z < z_hi)
+  //    (dom_lbnd[2] < z) && (z < dom_hbnd[2])) {
+#endif
+     ){
+        tag(i, j, k) = tagval;
   }
 }
 

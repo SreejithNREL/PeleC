@@ -39,7 +39,24 @@ PeleC::read_tagging_params()
   pp.query("vfracerr", tagging_parm->vfracerr);
   pp.query("max_vfracerr_lev", tagging_parm->max_vfracerr_lev);
 
-  pp.query("dom_lbnd", tagging_parm->dom_lbnd);
-  pp.query("dom_hbnd", tagging_parm->dom_hbnd);
+  amrex::Vector<amrex::Real> dom_lbnd_tmp[AMREX_SPACEDIM] = {{1.e+10}};
+  //amrex::Vector<amrex::Real> dom_hbnd_tmp[AMREX_SPACEDIM] = {{1.e+10}};
+  //pp.queryarr("dom_lbnd", tagging_parm->dom_lbnd,0,AMREX_SPACEDIM);
+  //pp.queryarr("dom_hbnd", tagging_parm->dom_hbnd,0,AMREX_SPACEDIM);
+
+  // tagging_parm->dom_lbnd = dom_lbnd_tmp;
+
+  pp.query("dom_lbnd_x", tagging_parm->dom_lbnd_x);
+  pp.query("dom_hbnd_x", tagging_parm->dom_hbnd_x);
+
+  pp.query("dom_lbnd_y", tagging_parm->dom_lbnd_y);
+  pp.query("dom_hbnd_y", tagging_parm->dom_hbnd_y);
+
+  pp.query("dom_lbnd_z", tagging_parm->dom_lbnd_z);
+  pp.query("dom_hbnd_z", tagging_parm->dom_hbnd_z);
+  amrex::Print() << "Refining the region: " << std::endl;
+  amrex::Print() << "dom_lbnd_x " << tagging_parm->dom_lbnd_x << "dom_hbnd_x " << tagging_parm->dom_hbnd_x << std::endl;
+  amrex::Print() << "dom_lbnd_y " << tagging_parm->dom_lbnd_y << "dom_hbnd_y " << tagging_parm->dom_hbnd_y << std::endl;
+  amrex::Print() << "dom_lbnd_z " << tagging_parm->dom_lbnd_z << "dom_hbnd_z " << tagging_parm->dom_hbnd_z << std::endl;
   pp.query("max_dom_bnd_lev", tagging_parm->max_dom_bnd_lev);
 }
