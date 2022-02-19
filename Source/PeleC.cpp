@@ -743,7 +743,7 @@ PeleC::initData()
       const auto geomdata = geom.data();
    
         amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-        problem_post_init(i, j, k, sfab, geomdata);
+     //   problem_post_init(i, j, k, sfab, geomdata);
         pc_check_initial_species(i, j, k, sfab);
       });
     }
@@ -1689,6 +1689,7 @@ PeleC::errorEst(
       const amrex::Box& tilebox = mfi.tilebox();
       const auto Sfab = S_data.array(mfi);
       auto tag_arr = tags.array(mfi);
+      const auto geomdata = geom.data();
       const auto datbox = amrex::grow(tilebox, 1);
       amrex::Elixir S_data_mfi_eli = S_data[mfi].elixir();
 
@@ -1704,12 +1705,14 @@ PeleC::errorEst(
 
       // ---------- Tagging domain region -------------
       if (level < tagging_parm->max_dom_bnd_lev) {
-        const amrex::Real lbnd = tagging_parm->dom_lbnd;
-        const amrex::Real hbnd = tagging_parm->dom_hbnd;
+        //amrex::Vector<amrex::Real>* lbnd = tagging_parm->dom_lbnd[0];
+        //amrex::Vector<amrex::Real>* hbnd = tagging_parm->dom_hbnd[0];
         amrex::ParallelFor(
           tilebox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            const auto geomdata = geom.data();
-            tag_error_region(i, j, k, geomdata, lbnd, hbnd, tag_arr, tagval);
+           tag_error_region(i, j, k, geomdata, tagging_parm->dom_lbnd_x, tagging_parm->dom_hbnd_x, 
+                            tagging_parm->dom_lbnd_y, tagging_parm->dom_hbnd_y,
+                            tagging_parm->dom_lbnd_z, tagging_parm->dom_hbnd_z,
+                            tag_arr, tagval);
           });
       }
       // -----------------------------------------------
