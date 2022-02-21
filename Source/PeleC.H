@@ -311,7 +311,7 @@ public:
 
   void construct_new_ext_source(amrex::Real time, amrex::Real dt);
 
-  static void fill_ext_source(
+  void fill_ext_source(
     amrex::Real time,
     amrex::Real dt,
     const amrex::MultiFab& state_old,
