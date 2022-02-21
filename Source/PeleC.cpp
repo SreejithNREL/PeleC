@@ -1707,11 +1707,17 @@ PeleC::errorEst(
       if (level < tagging_parm->max_dom_bnd_lev) {
         //amrex::Vector<amrex::Real>* lbnd = tagging_parm->dom_lbnd[0];
         //amrex::Vector<amrex::Real>* hbnd = tagging_parm->dom_hbnd[0];
+	const amrex::Real dom_lbnd_x = tagging_parm->dom_lbnd_x;
+        const amrex::Real dom_hbnd_x = tagging_parm->dom_hbnd_x;
+	const amrex::Real dom_lbnd_y = tagging_parm->dom_lbnd_y;
+	const amrex::Real dom_hbnd_y = tagging_parm->dom_hbnd_y;
+	const amrex::Real dom_lbnd_z = tagging_parm->dom_lbnd_z;
+	const amrex::Real dom_hbnd_z = tagging_parm->dom_hbnd_z;
         amrex::ParallelFor(
           tilebox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-           tag_error_region(i, j, k, geomdata, tagging_parm->dom_lbnd_x, tagging_parm->dom_hbnd_x, 
-                            tagging_parm->dom_lbnd_y, tagging_parm->dom_hbnd_y,
-                            tagging_parm->dom_lbnd_z, tagging_parm->dom_hbnd_z,
+           tag_error_region(i, j, k, geomdata, dom_lbnd_x, dom_hbnd_x, 
+                            dom_lbnd_y, dom_hbnd_y,
+                            dom_lbnd_z, dom_hbnd_z,
                             tag_arr, tagval);
           });
       }
