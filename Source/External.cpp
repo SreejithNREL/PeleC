@@ -153,7 +153,7 @@ void LTP_ignition_source(
   amrex::Real tau_hat = ign_duration/tau_p;   //pulse width
   amrex::Real N       = 2.0;                  //Number of pulses
   // amrex::Real A       = 1.5e+14*1.e-06*1.e+7;  //base power [J/m3/s] -> [erg/cm3/s]
-  amrex::Real A       = PeleC::h_prob_parm_device->base_power*1.e-06*1.e+7;  //base power [J/m3/s] -> [erg/cm3/s]
+  amrex::Real A       = prob_parm.base_power*1.e-06*1.e+7;  //base power [J/m3/s] -> [erg/cm3/s]
   // A = A * dx[0]*dx[1]*dx[2]; // [erg/s]
 
   amrex::Real t = time -1.0e-3; //time used to account for local convection of the ignition source
