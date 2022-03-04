@@ -488,14 +488,14 @@ void PeleC::problem_post_timestep()
 {
 }
 
-void PeleC::problem_post_init(){}
-//  int i,
-//  int j,
-//  int k,
-//  amrex::Array4<amrex::Real> const& state,
-//  amrex::GeometryData const& geomdata)
-//{
-//}
+void PeleC::problem_post_init(//){}
+  int i,
+  int j,
+  int k,
+  amrex::Array4<amrex::Real> const& state,
+  amrex::GeometryData const& geomdata)
+{
+}
 
 void PeleC::problem_post_restart(){}
 //  int i,
