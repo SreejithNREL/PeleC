@@ -264,6 +264,20 @@ PeleC::react_state(
               rhonew += rhoY(i, j, k, nsp);
             }
 
+
+            if (captured_clean_massfrac == 1) {
+              amrex::Real Ys[NUM_SPECIES];
+              for (int nsp = 0; nsp < NUM_SPECIES; nsp++) {
+                Ys[nsp] = rhoY(i, j, k, nsp)/rhonew;
+              }
+              
+              clip_normalize_Y(Ys);
+                  
+              for (int nsp = 0; nsp < NUM_SPECIES; nsp++) {
+                rhoY(i, j, k, nsp) = Ys[nsp]*rhonew;
+              }
+            }
+            
             if (do_update) {
               snew_arr(i, j, k, URHO) = rhonew;
               snew_arr(i, j, k, UMX) = umnew;
