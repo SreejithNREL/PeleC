@@ -697,26 +697,28 @@ PeleC::initData()
     amrex::Vector<std::string> names;
     pele::physics::eos::speciesNames<pele::physics::PhysicsType::eos_type>(names);
     //pele::physics::eos::speciesNames(names);
-//
+
     amrex::AmrData& amrData = dataServices.AmrDataRef();
     amrex::Vector<std::string> plotnames = amrData.PlotVarNames();
-//    int idT = -1, idV = -1, idX = -1, idY = -1, idRho = -1;
-//    for (int i = 0; i < plotnames.size(); ++i) {
-//      if (plotnames[i] == "Temp ")            idT = i;
-//      if (plotnames[i] == "density")         idRho = i;
-//      if (plotnames[i] == "x_velocity")      idV = i;
-//      if (plotnames[i] == "X("+names[0]+")") idX = i;
-//      if (plotnames[i] == "Y("+names[0]+")") idY = i;
-//     }
-//
-    int idT = 6;
-    int idRho = 0;
-    int idV = 1;
-    int idX = -1;
-    int idY = 10;
+    int idT = -1, idV = -1, idX = -1, idY = -1, idRho = -1;
+    for (int i = 0; i < plotnames.size(); ++i) {
+      if (plotnames[i] == "Temp")            idT = i;
+      if (plotnames[i] == "density")         idRho = i;
+      if (plotnames[i] == "x_velocity")      idV = i;
+      if (plotnames[i] == "X("+names[0]+")") idX = i;
+      if (plotnames[i] == "Y("+names[0]+")") idY = i;
+     }
+
+//    int idT = 6;
+//    int idRho = 0;
+//    int idV = 1;
+//    int idX = -1;
+//    int idY = 10;
 
     if (verbose) {
       amrex::Print() << "Initializing data from pltfile: \"" << pltfile << "\" for level " << level << std::endl;
+      amrex::Print() << "Temp       index: " << idT << std::endl;
+      amrex::Print() << "density    index: " << idRho << std::endl;
       amrex::Print() << "x_velocity index: " << idV << std::endl;
     }
 
@@ -726,11 +728,15 @@ PeleC::initData()
        amrex::Print() << "Initialized  velocity array " << i << std::endl;
     }
 
-    amrData.FillVar(S_new, level, "Temp", UTEMP);
-    amrData.FlushGrids(idT);
+    if(idT >= 0){
+      amrData.FillVar(S_new, level, "Temp", UTEMP);
+      amrData.FlushGrids(idT);
+    }
 
-    amrData.FillVar(S_new, level, "density", URHO);
-    amrData.FlushGrids(idRho);
+    if(idRho >= 0){
+      amrData.FillVar(S_new, level, "density", URHO);
+      amrData.FlushGrids(idRho);
+    }
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -741,9 +747,11 @@ PeleC::initData()
       const amrex::Box& box = mfi.tilebox();
       auto sfab = S_new.array(mfi);
       const auto geomdata = geom.data();
+      const ProbParmDevice* lprobparm = d_prob_parm_device;
    
         amrex::ParallelFor(box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
      //   problem_post_init(i, j, k, sfab, geomdata);
+        pc_initdata(i, j, k, sfab, geomdata, *lprobparm);
         pc_check_initial_species(i, j, k, sfab);
       });
     }
