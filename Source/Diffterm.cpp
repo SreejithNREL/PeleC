@@ -17,15 +17,11 @@ pc_compute_diffusion_flux(
   const amrex::GpuArray<const amrex::Array4<const amrex::Real>, AMREX_SPACEDIM>
     area,
   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> del,
-  const int do_harmonic
-#ifdef PELEC_USE_EB
-  ,
+  const int do_harmonic,
   const amrex::FabType typ,
   const int Ncut,
   const EBBndryGeom* ebg,
-  const amrex::Array4<amrex::EBCellFlag const>& flags
-#endif
-)
+  const amrex::Array4<amrex::EBCellFlag const>& flags)
 {
   {
     // Compute Extensive diffusion fluxes for X, Y, Z
@@ -36,10 +32,8 @@ pc_compute_diffusion_flux(
       amrex::Real d2 = 0.0;
       amrex::Box ebox = amrex::surroundingNodes(box, dir);
       if (dir == 0) {
-        // cppcheck-suppress redundantAssignment
         AMREX_D_TERM(d2 = 1.;, d1 = del[1];, d2 = del[2];);
       } else if (dir == 1) {
-        // cppcheck-suppress redundantAssignment
         AMREX_D_TERM(d2 = 1.;, d1 = del[0];, d2 = del[2];);
       } else if (dir == 2) {
         d1 = del[0];
@@ -54,7 +48,6 @@ pc_compute_diffusion_flux(
           pc_compute_tangential_vel_derivs(i, j, k, q, dir, d1, d2, tander);
         });
 
-#ifdef PELEC_USE_EB
       // Reset tangential derivatives to avoid using covered (invalid) data
       if (typ == amrex::FabType::singlevalued) {
         if (Ncut > 0) {
@@ -66,7 +59,6 @@ pc_compute_diffusion_flux(
         amrex::Abort(
           "multi-valued eb tangential derivatives to be implemented");
       }
-#endif
 
       amrex::ParallelFor(
         ebox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {

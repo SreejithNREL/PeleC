@@ -8,22 +8,15 @@ pc_compute_hyp_mol_flux(
   const amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM> flx,
   const amrex::GpuArray<const amrex::Array4<const amrex::Real>, AMREX_SPACEDIM>
     area,
-  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM>
-#ifdef PELEC_USE_EB
-    del
-#endif
-  ,
+  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> del
+  /*unused*/,
   const int plm_iorder,
-  const int use_laxf_flux
-#ifdef PELEC_USE_EB
-  ,
+  const bool use_laxf_flux,
   const amrex::Array4<amrex::EBCellFlag const>& flags,
   const EBBndryGeom* ebg,
   const int /*Nebg*/,
   amrex::Real* ebflux,
-  const int nebflux
-#endif
-)
+  const int nebflux)
 {
   const int R_RHO = 0;
   const int R_UN = 1;
@@ -40,7 +33,9 @@ pc_compute_hyp_mol_flux(
     setV(cbox, QVAR, dq, 0.0);
 
     // dimensional indexing
-    const amrex::GpuArray<const int, 3> bdim{{dir == 0, dir == 1, dir == 2}};
+    const amrex::GpuArray<const int, 3> bdim{
+      {static_cast<int>(dir == 0), static_cast<int>(dir == 1),
+       static_cast<int>(dir == 2)}};
     const amrex::GpuArray<const int, 3> q_idx{
       {bdim[0] * QU + bdim[1] * QV + bdim[2] * QW,
        bdim[0] * QV + bdim[1] * QU + bdim[2] * QU,
@@ -53,13 +48,7 @@ pc_compute_hyp_mol_flux(
     if (plm_iorder != 1) {
       amrex::ParallelFor(
         cbox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-          mol_slope(
-            i, j, k, dir, q_idx, q, qaux, dq
-#ifdef PELEC_USE_EB
-            ,
-            flags
-#endif
-          );
+          mol_slope(i, j, k, dir, q_idx, q, qaux, dq, flags);
         });
     }
     const amrex::Box tbox = amrex::grow(cbox, dir, -1);
@@ -124,7 +113,6 @@ pc_compute_hyp_mol_flux(
 
         amrex::Real flux_tmp[NVAR] = {0.0};
         amrex::Real ustar = 0.0;
-        amrex::Real maxeigval = 0.0;
 
         if (!use_laxf_flux) {
           amrex::Real tmp0 = 0.0, tmp1 = 0.0, tmp2 = 0.0, tmp3 = 0.0,
@@ -133,41 +121,18 @@ pc_compute_hyp_mol_flux(
             qtempl[R_RHO], qtempl[R_UN], qtempl[R_UT1], qtempl[R_UT2],
             qtempl[R_P], spl, qtempr[R_RHO], qtempr[R_UN], qtempr[R_UT1],
             qtempr[R_UT2], qtempr[R_P], spr, bc_test_val, cavg, ustar,
-            flux_tmp[URHO], flux_tmp[f_idx[0]], flux_tmp[f_idx[1]],
-            flux_tmp[f_idx[2]], flux_tmp[UEDEN], flux_tmp[UEINT], tmp0, tmp1,
-            tmp2, tmp3, tmp4);
+            flux_tmp[URHO], &flux_tmp[UFS], flux_tmp[f_idx[0]],
+            flux_tmp[f_idx[1]], flux_tmp[f_idx[2]], flux_tmp[UEDEN],
+            flux_tmp[UEINT], tmp0, tmp1, tmp2, tmp3, tmp4);
         } else {
+          amrex::Real maxeigval = 0.0;
           laxfriedrich_flux(
             qtempl[R_RHO], qtempl[R_UN], qtempl[R_UT1], qtempl[R_UT2],
             qtempl[R_P], spl, qtempr[R_RHO], qtempr[R_UN], qtempr[R_UT1],
             qtempr[R_UT2], qtempr[R_P], spr, bc_test_val, cavg, ustar,
-            maxeigval, flux_tmp[URHO], flux_tmp[f_idx[0]], flux_tmp[f_idx[1]],
-            flux_tmp[f_idx[2]], flux_tmp[UEDEN], flux_tmp[UEINT]);
-        }
-
-        if (!use_laxf_flux) {
-          for (int n = 0; n < NUM_SPECIES; n++) {
-            flux_tmp[UFS + n] = (ustar > 0.0)
-                                  ? flux_tmp[URHO] * qtempl[R_Y + n]
-                                  : flux_tmp[URHO] * qtempr[R_Y + n];
-            flux_tmp[UFS + n] =
-              (ustar == 0.0)
-                ? flux_tmp[URHO] * 0.5 * (qtempl[R_Y + n] + qtempr[R_Y + n])
-                : flux_tmp[UFS + n];
-          }
-        } else {
-          for (int n = 0; n < NUM_SPECIES; n++) {
-
-            // central
-            flux_tmp[UFS + n] =
-              0.5 * (qtempl[R_RHO] * qtempl[R_UN] * qtempl[R_Y + n] +
-                     qtempr[R_RHO] * qtempr[R_UN] * qtempr[R_Y + n]);
-
-            // dissipation
-            flux_tmp[UFS + n] += -0.5 * maxeigval *
-                                 (qtempr[R_RHO] * qtempr[R_Y + n] -
-                                  qtempl[R_RHO] * qtempl[R_Y + n]);
-          }
+            maxeigval, flux_tmp[URHO], &flux_tmp[UFS], flux_tmp[f_idx[0]],
+            flux_tmp[f_idx[1]], flux_tmp[f_idx[2]], flux_tmp[UEDEN],
+            flux_tmp[UEINT]);
         }
 
         flux_tmp[UTEMP] = 0.0;
@@ -184,7 +149,6 @@ pc_compute_hyp_mol_flux(
       });
   }
 
-#ifdef PELEC_USE_EB
   // nextra was 3 for EB in PeleC but we are operating on a different
   // box here, so this should be zero.
   const int nextra = 0;
@@ -215,5 +179,4 @@ pc_compute_hyp_mol_flux(
       }
     }
   });
-#endif
 }

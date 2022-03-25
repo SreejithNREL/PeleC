@@ -166,10 +166,11 @@ pc_cmpflx(
   v2r = qr(i, j, k, IV2);
 
   // Outflow Hack
-  if (dir == 2)
+  if (dir == 2) {
     idx = k;
-  else
+  } else {
     idx = (dir == 0) ? i : j;
+  }
   if (bclo == Outflow && idx == domlo) {
     ul = ur;
     vl = vr;
@@ -182,24 +183,26 @@ pc_cmpflx(
   }
 
   const int bc_test_val = 1;
+  amrex::Real dummy_flx[NUM_SPECIES] = {0.0}; // FIXME later
   riemann(
     ql(i, j, k, QRHO), ul, vl, v2l, ql(i, j, k, QPRES), spl, qr(i, j, k, QRHO),
     ur, vr, v2r, qr(i, j, k, QPRES), spr, bc_test_val, cav, ustar,
-    flx(i, j, k, URHO), flx(i, j, k, f_idx[0]), flx(i, j, k, f_idx[1]),
-    flx(i, j, k, f_idx[2]), flx(i, j, k, UEDEN), flx(i, j, k, UEINT),
-    q(i, j, k, GU), q(i, j, k, GV), q(i, j, k, GV2), q(i, j, k, GDPRES),
-    q(i, j, k, GDGAME));
+    flx(i, j, k, URHO), dummy_flx, flx(i, j, k, f_idx[0]),
+    flx(i, j, k, f_idx[1]), flx(i, j, k, f_idx[2]), flx(i, j, k, UEDEN),
+    flx(i, j, k, UEINT), q(i, j, k, GU), q(i, j, k, GV), q(i, j, k, GV2),
+    q(i, j, k, GDPRES), q(i, j, k, GDGAME));
 
   amrex::Real flxrho = flx(i, j, k, URHO);
   for (int ipass = 0; ipass < NPASSIVE; ++ipass) {
     int n = pmap.upassMap[ipass];
     int nqp = pmap.qpassMap[ipass];
-    if (ustar > 0.0)
+    if (ustar > 0.0) {
       flx(i, j, k, n) = flxrho * ql(i, j, k, nqp);
-    else if (ustar < 0.0)
+    } else if (ustar < 0.0) {
       flx(i, j, k, n) = flxrho * qr(i, j, k, nqp);
-    else
+    } else {
       flx(i, j, k, n) = flxrho * 0.50 * (ql(i, j, k, nqp) + qr(i, j, k, nqp));
+    }
   }
 }
 
@@ -352,7 +355,9 @@ pc_transdd(
   const amrex::IntVect iv{AMREX_D_DECL(i, j, k)};
   const int qvidx0 = (dir == 0) ? GDV : GDU;
   const int qvidx1 = (dir == 2) ? GDV : GDW;
-  const amrex::GpuArray<const int, 3> bdim{{dir == 0, dir == 1, dir == 2}};
+  const amrex::GpuArray<const int, 3> bdim{
+    {static_cast<int>(dir == 0), static_cast<int>(dir == 1),
+     static_cast<int>(dir == 2)}};
   const amrex::GpuArray<const int, 3> l_idx{
     {bdim[0] * 0 + bdim[1] * 1 + bdim[2] * 2,
      bdim[0] * 1 + bdim[1] * 0 + bdim[2] * 0,
@@ -639,7 +644,9 @@ pc_artif_visc(
 {
   const amrex::IntVect iv{AMREX_D_DECL(i, j, k)};
   const amrex::IntVect ivm(iv - amrex::IntVect::TheDimensionVector(dir));
-  const amrex::GpuArray<const int, 3> bdim{{dir == 0, dir == 1, dir == 2}};
+  const amrex::GpuArray<const int, 3> bdim{
+    {static_cast<int>(dir == 0), static_cast<int>(dir == 1),
+     static_cast<int>(dir == 2)}};
   const amrex::GpuArray<const int, 3> l_idx{
     {bdim[0] * 0 + bdim[1] * 1 + bdim[2] * 2,
      bdim[0] * 1 + bdim[1] * 0 + bdim[2] * 0,
@@ -690,7 +697,9 @@ void pc_umeth_3D(
   const amrex::Real* del,
   const amrex::Real dt,
   const int ppm_type,
-  const int use_flattening);
+  const bool use_flattening,
+  const bool use_hybrid_weno,
+  const int weno_scheme);
 
 #elif AMREX_SPACEDIM == 2
 
@@ -715,7 +724,9 @@ void pc_umeth_2D(
   const amrex::Real* del,
   const amrex::Real dt,
   const int ppm_type,
-  const int use_flattening);
+  const bool use_flattening,
+  const bool use_hybrid_weno,
+  const int weno_scheme);
 #endif
 
 #endif

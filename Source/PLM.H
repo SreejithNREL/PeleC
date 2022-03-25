@@ -67,7 +67,6 @@ plm_slope(
            ? 2.0 * amrex::min<amrex::Real>(
                      amrex::Math::abs(dlft), amrex::Math::abs(drgt))
            : 0.0;
-  dcen = dsgn * amrex::min<amrex::Real>(dlim, amrex::Math::abs(dcen));
 
   dtemp = 4.0 / 3.0 * dcen - 1.0 / 6.0 * (dfp + dfm);
 
@@ -94,7 +93,9 @@ pc_plm_d(
 {
   const amrex::IntVect iv{AMREX_D_DECL(i, j, k)};
   const amrex::IntVect ivp(iv + amrex::IntVect::TheDimensionVector(dir));
-  const amrex::GpuArray<const int, 3> bdim{{dir == 0, dir == 1, dir == 2}};
+  const amrex::GpuArray<const int, 3> bdim{
+    {static_cast<int>(dir == 0), static_cast<int>(dir == 1),
+     static_cast<int>(dir == 2)}};
   const amrex::GpuArray<const int, 3> l_idx{
     {bdim[0] * 0 + bdim[1] * 1 + bdim[2] * 2,
      bdim[0] * 1 + bdim[1] * 0 + bdim[2] * 0,

@@ -2,9 +2,7 @@
 #define _DIFFTERM_H_
 
 #include <AMReX_FArrayBox.H>
-#ifdef PELEC_USE_EB
 #include <AMReX_EBCellFlag.H>
-#endif
 
 #include "IndexDefines.H"
 #include "EBStencilTypes.H"
@@ -137,8 +135,8 @@ struct SpeciesEnergyFlux<pele::physics::eos::SRK>
       }
     }
     amrex::Real dsum = 0.0;
-    for (int ns = 0; ns < NUM_SPECIES; ++ns) {
-      dsum += ddrive[ns];
+    for (amrex::Real ns : ddrive) {
+      dsum += ns;
     }
     for (int ns = 0; ns < NUM_SPECIES; ++ns) {
       const amrex::Real Yface = 0.5 * (mass1[ns] + mass2[ns]);
@@ -251,8 +249,9 @@ pc_diffusion_flux(
   AMREX_D_TERM(flx(iv, UMX) *= area(i, j, k);, flx(iv, UMY) *= area(i, j, k);
                , flx(iv, UMZ) *= area(i, j, k););
   flx(iv, UEDEN) *= area(i, j, k);
-  for (int ns = 0; ns < NUM_SPECIES; ++ns)
+  for (int ns = 0; ns < NUM_SPECIES; ++ns) {
     flx(iv, UFS + ns) *= area(i, j, k);
+  }
 }
 
 // This function computes the flux divergence.
@@ -286,14 +285,10 @@ void pc_compute_diffusion_flux(
   const amrex::GpuArray<const amrex::Array4<const amrex::Real>, AMREX_SPACEDIM>
     area,
   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> del,
-  const int do_harmonic
-#ifdef PELEC_USE_EB
-  ,
+  const int do_harmonic,
   const amrex::FabType typ,
   const int Ncut,
   const EBBndryGeom* ebg,
-  const amrex::Array4<amrex::EBCellFlag const>& flags
-#endif
-);
+  const amrex::Array4<amrex::EBCellFlag const>& flags);
 
 #endif

@@ -8,9 +8,7 @@
 using namespace MASA;
 #endif
 
-#ifdef PELEC_USE_EB
 #include "EB.H"
-#endif
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -21,7 +19,6 @@ get_idx(const int i, int& im, int& ip)
   ip = i + 1;
 }
 
-#ifdef PELEC_USE_EB
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
@@ -42,12 +39,11 @@ get_idx(
     } else {
       const amrex::IntVect ivm = -amrex::IntVect::TheDimensionVector(dir);
       const amrex::IntVect ivp = amrex::IntVect::TheDimensionVector(dir);
-      im = i - flag.isConnected(ivm);
-      ip = i + flag.isConnected(ivp);
+      im = i - static_cast<int>(flag.isConnected(ivm));
+      ip = i + static_cast<int>(flag.isConnected(ivp));
     }
   }
 }
-#endif
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE

@@ -103,12 +103,12 @@ PeleC::getLESTerm(
 {
   BL_PROFILE("PeleC::getLESTerm()");
 
-  if (do_les == 0) {
+  if (!do_les) {
     LESTerm.setVal(0, 0, NVAR, LESTerm.nGrow());
     return;
   }
 
-  if (verbose) {
+  if (verbose != 0) {
     amrex::Print() << "... Computing LES term at time " << time << std::endl;
   }
 
@@ -198,18 +198,16 @@ PeleC::getSmagorinskyLESTerm(
     {AMREX_D_DECL(dx1, dx1, dx1)}};
   const amrex::Real* dxDp = &(dxD[0]);
 
-  amrex::MultiFab S(grids, dmap, NVAR, ngrow);
+  amrex::MultiFab S(grids, dmap, NVAR, ngrow, amrex::MFInfo(), Factory());
   FillPatch(*this, S, ngrow, time, State_Type, 0, NVAR); // FIXME: time+dt?
 
   // Fetch some gpu arrays
   prefetchToDevice(S);
   prefetchToDevice(LESTerm);
 
-#ifdef PELEC_USE_EB
   auto const& fact =
     dynamic_cast<amrex::EBFArrayBoxFactory const&>(S.Factory());
   auto const& flags = fact.getMultiEBCellFlagFab();
-#endif
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -220,9 +218,6 @@ PeleC::getSmagorinskyLESTerm(
       const amrex::Box gbox = amrex::grow(vbox, ngrow);
       const amrex::Box cbox = amrex::grow(vbox, ngrow - 1);
 
-      // const amrex::Box& dbox = geom.Domain();
-
-#ifdef PELEC_USE_EB
       const auto& flag_fab = flags[mfi];
       amrex::FabType typ = flag_fab.getType(cbox);
       if (typ != amrex::FabType::regular) {
@@ -231,7 +226,6 @@ PeleC::getSmagorinskyLESTerm(
       if (typ == amrex::FabType::covered) {
         continue;
       }
-#endif
 
       auto const& s = S.array(mfi);
       int nqaux = NQAUX > 0 ? NQAUX : 1;
@@ -247,11 +241,9 @@ PeleC::getSmagorinskyLESTerm(
       {
         BL_PROFILE("PeleC::ctoprim()");
         const PassMap* lpmap = d_pass_map;
-        const int captured_clean_massfrac = clean_massfrac;
         amrex::ParallelFor(
           gbox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            pc_ctoprim(
-              i, j, k, s, q_ar, qauxar, *lpmap, captured_clean_massfrac);
+            pc_ctoprim(i, j, k, s, q_ar, qauxar, *lpmap);
           });
       }
 
@@ -421,7 +413,9 @@ PeleC::getDynamicSmagorinskyLESTerm(
   const amrex::Real* dxDp = &(dxD[0]);
 
   // 1. Get state variable data
-  amrex::MultiFab S(grids, dmap, NVAR, nGrowD + nGrowC + nGrowT + 1);
+  amrex::MultiFab S(
+    grids, dmap, NVAR, nGrowD + nGrowC + nGrowT + 1, amrex::MFInfo(),
+    Factory());
   FillPatch(
     *this, S, nGrowD + nGrowC + nGrowT + 1, time, State_Type, 0,
     NVAR); // FIXME: time+dt?
@@ -432,11 +426,9 @@ PeleC::getDynamicSmagorinskyLESTerm(
   prefetchToDevice(LESTerm);
   prefetchToDevice(LES_Coeffs);
 
-#ifdef PELEC_USE_EB
   auto const& fact =
     dynamic_cast<amrex::EBFArrayBoxFactory const&>(S.Factory());
   auto const& flags = fact.getMultiEBCellFlagFab();
-#endif
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -450,9 +442,7 @@ PeleC::getDynamicSmagorinskyLESTerm(
       const amrex::Box g3box = amrex::grow(vbox, nGrowC + 1);
       const amrex::Box g4box = amrex::grow(vbox, 1);
       const amrex::Box cbox = amrex::grow(vbox, 0);
-      // const amrex::Box& dbox = geom.Domain();
 
-#ifdef PELEC_USE_EB
       const auto& flag_fab = flags[mfi];
       amrex::FabType typ = flag_fab.getType(cbox);
       if (typ != amrex::FabType::regular) {
@@ -461,7 +451,6 @@ PeleC::getDynamicSmagorinskyLESTerm(
       if (typ == amrex::FabType::covered) {
         continue;
       }
-#endif
 
       auto const& s = S.array(mfi);
       int nqaux = NQAUX > 0 ? NQAUX : 1;
@@ -477,11 +466,9 @@ PeleC::getDynamicSmagorinskyLESTerm(
       {
         BL_PROFILE("PeleC::ctoprim()");
         const PassMap* lpmap = d_pass_map;
-        const int captured_clean_massfrac = clean_massfrac;
         amrex::ParallelFor(
           g0box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            pc_ctoprim(
-              i, j, k, s, q_ar, qauxar, *lpmap, captured_clean_massfrac);
+            pc_ctoprim(i, j, k, s, q_ar, qauxar, *lpmap);
           });
       }
 
@@ -558,12 +545,10 @@ PeleC::getDynamicSmagorinskyLESTerm(
       {
         BL_PROFILE("PeleC::ctoprim()");
         const PassMap* lpmap = d_pass_map;
-        const int captured_clean_massfrac = clean_massfrac;
         amrex::ParallelFor(
           g2box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
             pc_ctoprim(
-              i, j, k, filtered_S_ar, filtered_Q_ar, filtered_Qaux_ar, *lpmap,
-              captured_clean_massfrac);
+              i, j, k, filtered_S_ar, filtered_Q_ar, filtered_Qaux_ar, *lpmap);
           });
       }
       test_filter.apply_filter(g3box, K, filtered_K);

@@ -44,7 +44,7 @@ PeleC::react_state(
 
   AMREX_ASSERT(do_react == 1);
 
-  if (verbose && amrex::ParallelDescriptor::IOProcessor()) {
+  if ((verbose != 0) && amrex::ParallelDescriptor::IOProcessor()) {
     if (react_init) {
       amrex::Print() << "... Initializing reactions, using interval dt = " << dt
                      << std::endl;
@@ -124,11 +124,9 @@ PeleC::react_state(
   amrex::MultiFab::Copy(
     extsrc_rY, *non_react_src, UFS, 0, NUM_SPECIES, STemp.nGrow());
 
-#ifdef PELEC_USE_EB
   auto const& fact =
     dynamic_cast<amrex::EBFArrayBoxFactory const&>(S_new.Factory());
   auto const& flags = fact.getMultiEBCellFlagFab();
-#endif
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -150,11 +148,8 @@ PeleC::react_state(
 
       // only update beyond first step
       // TODO: Update here? Or just get reaction source?
-      const int do_update = react_init ? 0 : 1;
+      const bool do_update = !react_init;
 
-      const int captured_clean_massfrac = clean_massfrac;
-
-#ifdef PELEC_USE_EB
       const auto& flag_fab = flags[mfi];
       amrex::FabType typ = flag_fab.getType(bx);
       if (typ == amrex::FabType::covered) {
@@ -165,9 +160,9 @@ PeleC::react_state(
         }
         continue;
       }
-      if (typ == amrex::FabType::singlevalued || typ == amrex::FabType::regular)
-#endif
-      {
+      if (
+        (typ == amrex::FabType::singlevalued) ||
+        (typ == amrex::FabType::regular)) {
         amrex::Real wt =
           amrex::ParallelDescriptor::second(); // timing for each fab
 
@@ -209,9 +204,6 @@ PeleC::react_state(
               dt;
 
             frcEExt(i, j, k) = rhoedot_ext;
-            if (captured_clean_massfrac == 1) {
-              clip_normalize_rYarr(i, j, k, sold_arr, rhoY);
-            }
           });
 
         reactor->react(
@@ -351,16 +343,10 @@ PeleC::react_state(
     const int IOProc = amrex::ParallelDescriptor::IOProcessorNumber();
     amrex::Real run_time = amrex::ParallelDescriptor::second() - strt_time;
 
-#ifdef AMREX_LAZY
-    Lazy::QueueReduction([=]() mutable {
-#endif
-      amrex::ParallelDescriptor::ReduceRealMax(run_time, IOProc);
+    amrex::ParallelDescriptor::ReduceRealMax(run_time, IOProc);
 
-      if (amrex::ParallelDescriptor::IOProcessor()) {
-        amrex::Print() << "PeleC::react_state() time = " << run_time << "\n";
-      }
-#ifdef AMREX_LAZY
-    });
-#endif
+    if (amrex::ParallelDescriptor::IOProcessor()) {
+      amrex::Print() << "PeleC::react_state() time = " << run_time << "\n";
+    }
   }
 }
