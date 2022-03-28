@@ -6,6 +6,7 @@
 #include <AMReX_GpuMemory.H>
 #include "IndexDefines.H"
 
+#ifdef PELEC_USE_FORCING
 void change_cfl_during_ignition(
   amrex::Real time,
   amrex::Real dt,
@@ -143,4 +144,5 @@ void LTP_ignition_source(
   }
 }
 
+#endif
 #endif
