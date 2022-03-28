@@ -34,7 +34,7 @@ struct TaggingParm
   int max_ftracerr_lev = 10;
   int max_ftracgrad_lev = 10;
   int max_vfracerr_lev = 10;
-<<<<<<< HEAD
+
 
   amrex::Real dom_lbnd_x = 1.0e10;
   amrex::Real dom_hbnd_x = 1.0e10;
@@ -45,11 +45,11 @@ struct TaggingParm
   amrex::Vector<amrex::Real> dom_lbnd[AMREX_SPACEDIM] = {{1.0e10}};
  // amrex::Vector<amrex::Real> dom_hbnd[AMREX_SPACEDIM] = {{1.0e10}};
   int max_dom_bnd_lev = 10;
-=======
+
   int max_eb_refine_lev = 10;
   int min_eb_refine_lev = -1;
   int adapt_eb_refined_lev = -1;
->>>>>>> development
+
 };
 
 AMREX_GPU_DEVICE

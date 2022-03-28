@@ -10,6 +10,25 @@
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
+clip_normalize_Y(amrex::Real* Y)
+{
+
+  // Clip
+  amrex::Real sum = 0.0;
+  for (int n = 0; n < NUM_SPECIES; n++) {
+    Y[n] = amrex::max(amrex::min(Y[n], 1.0), 0.0);
+    sum += Y[n];
+  }
+
+  // Normalize
+  for (int n = 0; n < NUM_SPECIES; n++) {
+    Y[n] /= sum;
+  }
+}
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+void
 pc_cmpTemp(
   const int i, const int j, const int k, amrex::Array4<amrex::Real> const& S)
 {

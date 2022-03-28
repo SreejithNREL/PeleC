@@ -630,7 +630,6 @@ PeleC::initData()
     get_new_data(Work_Estimate_Type).setVal(1.0);
   }
 
-<<<<<<< HEAD
   amrex::ParmParse pp("pele");
   if (pp.countval("pltfile_for_init") > 0) {
     S_new.setVal(0.0);
@@ -713,9 +712,7 @@ PeleC::initData()
   }
   else {
 
-=======
   if (init_pltfile.empty()) {
->>>>>>> development
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif

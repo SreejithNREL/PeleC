@@ -7,7 +7,7 @@ void problem_post_timestep();
 
 void problem_post_restart();
 
-//void problem_post_init();
+void problem_post_init();
 void problem_post_init( int i,
  int j,
  int k,
