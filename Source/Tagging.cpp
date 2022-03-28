@@ -39,6 +39,7 @@ PeleC::read_tagging_params()
   pp.query("vfracerr", tagging_parm->vfracerr);
   pp.query("max_vfracerr_lev", tagging_parm->max_vfracerr_lev);
 
+
   amrex::Vector<amrex::Real> dom_lbnd_tmp[AMREX_SPACEDIM] = {{1.e+10}};
   //amrex::Vector<amrex::Real> dom_hbnd_tmp[AMREX_SPACEDIM] = {{1.e+10}};
   //pp.queryarr("dom_lbnd", tagging_parm->dom_lbnd,0,AMREX_SPACEDIM);
@@ -59,4 +60,18 @@ PeleC::read_tagging_params()
   amrex::Print() << "dom_lbnd_y " << tagging_parm->dom_lbnd_y << "dom_hbnd_y " << tagging_parm->dom_hbnd_y << std::endl;
   amrex::Print() << "dom_lbnd_z " << tagging_parm->dom_lbnd_z << "dom_hbnd_z " << tagging_parm->dom_hbnd_z << std::endl;
   pp.query("max_dom_bnd_lev", tagging_parm->max_dom_bnd_lev);
+
+  pp.query("eb_refine_type", tagging_parm->eb_refine_type);
+  pp.query("max_eb_refine_lev", tagging_parm->max_eb_refine_lev);
+  if (
+    (tagging_parm->eb_refine_type != "static") &&
+    (tagging_parm->eb_refine_type != "adaptive")) {
+    amrex::Abort("refine_eb_type can only be 'static' or 'adaptive'");
+  }
+  if (tagging_parm->eb_refine_type == "adaptive") {
+    tagging_parm->min_eb_refine_lev = 0;
+    pp.query("min_eb_refine_lev", tagging_parm->min_eb_refine_lev);
+    tagging_parm->adapt_eb_refined_lev = tagging_parm->min_eb_refine_lev;
+  }
+
 }

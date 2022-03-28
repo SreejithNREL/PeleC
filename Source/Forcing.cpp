@@ -38,20 +38,15 @@ void
 
 void
 PeleC::fill_forcing_source(
-  const amrex::MultiFab&
-#ifdef PELEC_USE_EB
-    state_old
-#endif
-  ,
+  const amrex::MultiFab& state_old
+  /*unused*/,
   const amrex::MultiFab& state_new,
   amrex::MultiFab& forcing_src,
   int ng)
 {
-#ifdef PELEC_USE_EB
   auto const& fact =
     dynamic_cast<amrex::EBFArrayBoxFactory const&>(state_old.Factory());
   auto const& flags = fact.getMultiEBCellFlagFab();
-#endif
 
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
@@ -60,27 +55,19 @@ PeleC::fill_forcing_source(
        ++mfi) {
     const amrex::Box& bx = mfi.growntilebox(ng);
 
-#ifdef PELEC_USE_EB
     const auto& flag_fab = flags[mfi];
     amrex::FabType typ = flag_fab.getType(bx);
     if (typ == amrex::FabType::covered) {
       continue;
     }
-#endif
 
     auto const& sarr = state_new.array(mfi);
     auto const& src = forcing_src.array(mfi);
 
-    amrex::Real u0 = 0.0;
-    amrex::Real v0 = 0.0;
-    amrex::Real w0 = 0.0;
-    amrex::Real force = 0.0;
-#ifdef PELEC_USE_FORCING
-    u0 = PeleC::h_prob_parm_device->forcing_u0;
-    v0 = PeleC::h_prob_parm_device->forcing_v0;
-    w0 = PeleC::h_prob_parm_device->forcing_w0;
-    force = PeleC::h_prob_parm_device->forcing_force;
-#endif
+    amrex::Real u0 = forcing_u0;
+    amrex::Real v0 = forcing_v0;
+    amrex::Real w0 = forcing_w0;
+    amrex::Real force = forcing_force;
 
     // Evaluate the linear forcing term
     amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {

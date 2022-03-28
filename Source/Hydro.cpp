@@ -12,13 +12,13 @@ PeleC::construct_hydro_source(
   int sub_ncycle)
 {
   if (do_mol) {
-    if (verbose && amrex::ParallelDescriptor::IOProcessor()) {
+    if ((verbose != 0) && amrex::ParallelDescriptor::IOProcessor()) {
       amrex::Print() << "... Zeroing Godunov-based hydro advance" << std::endl;
     }
     hydro_source.setVal(0);
   } else {
 
-    if (verbose && amrex::ParallelDescriptor::IOProcessor()) {
+    if ((verbose != 0) && amrex::ParallelDescriptor::IOProcessor()) {
       amrex::Print() << "... Computing hydro advance" << std::endl;
     }
 
@@ -33,7 +33,7 @@ PeleC::construct_hydro_source(
         sources_for_hydro, 0.5, *old_sources[src_list[n]], 0, 0, NVAR, ng);
     }
     // Add I_R terms to advective forcing
-    if (do_react == 1) {
+    if (do_react) {
       amrex::MultiFab::Add(
         sources_for_hydro, get_new_data(Reactions_Type), 0, FirstSpec,
         NUM_SPECIES, ng);
@@ -137,11 +137,9 @@ PeleC::construct_hydro_source(
 
         BL_PROFILE_VAR("PeleC::ctoprim()", ctop);
         const PassMap* lpmap = d_pass_map;
-        const int captured_clean_massfrac = clean_massfrac;
         amrex::ParallelFor(
           qbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            pc_ctoprim(
-              i, j, k, s, qarr, qauxar, *lpmap, captured_clean_massfrac);
+            pc_ctoprim(i, j, k, s, qarr, qauxar, *lpmap);
           });
         BL_PROFILE_VAR_STOP(ctop);
 
@@ -217,7 +215,8 @@ PeleC::construct_hydro_source(
         pc_umdrv(
           is_finest_level, time, fbx, domain_lo, domain_hi, phys_bc.lo(),
           phys_bc.hi(), s, hyd_src, qarr, qauxar, srcqarr, dx, dt, ppm_type,
-          use_flattening, difmag, flx_arr, a, volume.array(mfi), cflLoc);
+          use_flattening, use_hybrid_weno, weno_scheme, difmag, flx_arr, a,
+          volume.array(mfi), cflLoc);
         BL_PROFILE_VAR_STOP(purm);
 
         BL_PROFILE_VAR("courno + flux reg", crno);
@@ -292,40 +291,34 @@ PeleC::construct_hydro_source(
         E_added_flux, xmom_added_flux, ymom_added_flux, zmom_added_flux,
         mass_added_flux};
 
-#ifdef AMREX_LAZY
-      Lazy::QueueReduction([=]() mutable {
-#endif
-        amrex::ParallelDescriptor::ReduceRealSum(
-          foo, 5, amrex::ParallelDescriptor::IOProcessorNumber());
+      amrex::ParallelDescriptor::ReduceRealSum(
+        foo, 5, amrex::ParallelDescriptor::IOProcessorNumber());
 
 #ifdef AMREX_DEBUG
-        if (amrex::ParallelDescriptor::IOProcessor()) {
-          E_added_flux = foo[0];
-          xmom_added_flux = foo[1];
-          ymom_added_flux = foo[2];
-          zmom_added_flux = foo[3];
-          mass_added_flux = foo[4];
-          amrex::Print() << "mass added from fluxes                      : "
-                         << mass_added_flux << std::endl;
-          amrex::Print() << "xmom added from fluxes                      : "
-                         << xmom_added_flux << std::endl;
-          amrex::Print() << "ymom added from fluxes                      : "
-                         << ymom_added_flux << std::endl;
-          amrex::Print() << "zmom added from fluxes                      : "
-                         << zmom_added_flux << std::endl;
-          amrex::Print() << "(rho E) added from fluxes                   : "
-                         << E_added_flux << std::endl;
-        }
-#endif
-#ifdef AMREX_LAZY
-      });
+      if (amrex::ParallelDescriptor::IOProcessor()) {
+        E_added_flux = foo[0];
+        xmom_added_flux = foo[1];
+        ymom_added_flux = foo[2];
+        zmom_added_flux = foo[3];
+        mass_added_flux = foo[4];
+        amrex::Print() << "mass added from fluxes                      : "
+                       << mass_added_flux << std::endl;
+        amrex::Print() << "xmom added from fluxes                      : "
+                       << xmom_added_flux << std::endl;
+        amrex::Print() << "ymom added from fluxes                      : "
+                       << ymom_added_flux << std::endl;
+        amrex::Print() << "zmom added from fluxes                      : "
+                       << zmom_added_flux << std::endl;
+        amrex::Print() << "(rho E) added from fluxes                   : "
+                       << E_added_flux << std::endl;
+      }
 #endif
     }
 
     if (courno > 1.0) {
       amrex::Print() << "WARNING -- EFFECTIVE CFL AT THIS LEVEL " << level
                      << " IS " << courno << '\n';
-      if (hard_cfl_limit == 1) {
+      if (hard_cfl_limit) {
         amrex::Abort("CFL is too high at this level -- go back to a checkpoint "
                      "and restart with lower cfl number");
       }
@@ -351,7 +344,9 @@ pc_umdrv(
   const amrex::Real* dx,
   const amrex::Real dt,
   const int ppm_type,
-  const int use_flattening,
+  const bool use_flattening,
+  const bool use_hybrid_weno,
+  const int weno_scheme,
   const amrex::Real difmag,
   const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM> flx,
   const amrex::GpuArray<const amrex::Array4<const amrex::Real>, AMREX_SPACEDIM>
@@ -389,12 +384,13 @@ pc_umdrv(
   pc_umeth_2D(
     bx, bclo, bchi, domlo, domhi, q, qaux, src_q, // bcMask,
     flx[0], flx[1], qec_arr[0], qec_arr[1], a[0], a[1], pdivuarr, vol, dx, dt,
-    ppm_type, use_flattening);
+    ppm_type, use_flattening, use_hybrid_weno, weno_scheme);
 #elif AMREX_SPACEDIM == 3
   pc_umeth_3D(
     bx, bclo, bchi, domlo, domhi, q, qaux, src_q, // bcMask,
     flx[0], flx[1], flx[2], qec_arr[0], qec_arr[1], qec_arr[2], a[0], a[1],
-    a[2], pdivuarr, vol, dx, dt, ppm_type, use_flattening);
+    a[2], pdivuarr, vol, dx, dt, ppm_type, use_flattening, use_hybrid_weno,
+    weno_scheme);
 #endif
   BL_PROFILE_VAR_STOP(umeth);
   for (auto& dir : qec_eli) {

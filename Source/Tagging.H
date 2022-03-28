@@ -8,35 +8,33 @@
 struct TaggingParm
 {
   amrex::Real denerr = 1.0e10;
-  int max_denerr_lev = 10;
   amrex::Real dengrad = 1.0e10;
-  int max_dengrad_lev = 10;
-
   amrex::Real presserr = 1.0e10;
-  int max_presserr_lev = 10;
   amrex::Real pressgrad = 1.0e10;
-  int max_pressgrad_lev = 10;
-
   amrex::Real velerr = 1.0e10;
-  int max_velerr_lev = 10;
   amrex::Real velgrad = 1.0e10;
-  int max_velgrad_lev = 10;
-
   amrex::Real vorterr = 1.0e10;
-  int max_vorterr_lev = 10;
-
   amrex::Real temperr = 1.0e10;
-  int max_temperr_lev = 10;
   amrex::Real tempgrad = 1.0e10;
-  int max_tempgrad_lev = 10;
-
   amrex::Real ftracerr = 1.0e10;
-  int max_ftracerr_lev = 10;
   amrex::Real ftracgrad = 1.0e10;
-  int max_ftracgrad_lev = 10;
-
   amrex::Real vfracerr = 1.0e10;
+
+  std::string eb_refine_type = "static";
+
+  int max_denerr_lev = 10;
+  int max_dengrad_lev = 10;
+  int max_presserr_lev = 10;
+  int max_pressgrad_lev = 10;
+  int max_velerr_lev = 10;
+  int max_velgrad_lev = 10;
+  int max_vorterr_lev = 10;
+  int max_temperr_lev = 10;
+  int max_tempgrad_lev = 10;
+  int max_ftracerr_lev = 10;
+  int max_ftracgrad_lev = 10;
   int max_vfracerr_lev = 10;
+<<<<<<< HEAD
 
   amrex::Real dom_lbnd_x = 1.0e10;
   amrex::Real dom_hbnd_x = 1.0e10;
@@ -47,6 +45,11 @@ struct TaggingParm
   amrex::Vector<amrex::Real> dom_lbnd[AMREX_SPACEDIM] = {{1.0e10}};
  // amrex::Vector<amrex::Real> dom_hbnd[AMREX_SPACEDIM] = {{1.0e10}};
   int max_dom_bnd_lev = 10;
+=======
+  int max_eb_refine_lev = 10;
+  int min_eb_refine_lev = -1;
+  int adapt_eb_refined_lev = -1;
+>>>>>>> development
 };
 
 AMREX_GPU_DEVICE

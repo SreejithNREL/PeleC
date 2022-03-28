@@ -11,11 +11,10 @@
 #include <AMReX_Utility.H>
 #include <AMReX_buildInfo.H>
 #include <AMReX_ParmParse.H>
-#ifdef PELEC_USE_EB
 #include <AMReX_EBMultiFabUtil.H>
-#endif
 
 #include "mechanism.H"
+#include "PltFileManager.H"
 
 #include "PeleC.H"
 #include "IO.H"
@@ -113,9 +112,7 @@ PeleC::restart(amrex::Amr& papa, std::istream& is, bool bReadSpecial)
   }
   buildMetrics();
 
-#ifdef PELEC_USE_EB
-  init_eb(geom, grids, dmap);
-#endif
+  init_eb();
 
   const amrex::MultiFab& S_new = get_new_data(State_Type);
 
@@ -214,13 +211,13 @@ PeleC::restart(amrex::Amr& papa, std::istream& is, bool bReadSpecial)
       geom, papa.Geom(level - 1), papa.refRatio(level - 1), level, NVAR);
 
     if (!amrex::DefaultGeometry().IsCartesian()) {
-      pres_reg.define(
-        grids, papa.boxArray(level - 1), dmap, papa.DistributionMap(level - 1),
-        geom, papa.Geom(level - 1), papa.refRatio(level - 1), level, 1);
+      // pres_reg.define(
+      // grids, papa.boxArray(level - 1), dmap, papa.DistributionMap(level - 1),
+      // geom, papa.Geom(level - 1), papa.refRatio(level - 1), level, 1);
+      amrex::Abort("We don't do rz.");
     }
   }
 
-#ifdef PELEC_USE_EB
   if (input_version > 0 && level == 0 && eb_in_domain) {
     if (amrex::ParallelDescriptor::IOProcessor()) {
       std::ifstream BodyFile;
@@ -251,7 +248,6 @@ PeleC::restart(amrex::Amr& papa, std::istream& is, bool bReadSpecial)
       amrex::ParallelDescriptor::IOProcessorNumber());
     body_state_set = true;
   }
-#endif
 }
 
 void
@@ -267,7 +263,7 @@ PeleC::set_state_in_checkpoint(amrex::Vector<int>& state_in_checkpoint)
         amrex::Abort("State_Type is not present in the checkpoint file");
       }
     } else if (i == Reactions_Type) {
-      if (do_react == 0) {
+      if (!do_react) {
         state_in_checkpoint[i] = 0;
       } else {
         state_in_checkpoint[i] = is_present ? 1 : 0;
@@ -366,7 +362,6 @@ PeleC::checkPoint(
     */
   }
 
-#ifdef PELEC_USE_EB
   if (current_version > 0) {
     if (amrex::ParallelDescriptor::IOProcessor() && eb_in_domain) {
       amrex::IntVect iv(AMREX_D_DECL(0, 0, 0));
@@ -387,7 +382,6 @@ PeleC::checkPoint(
       BodyFile.close();
     }
   }
-#endif
 }
 
 void
@@ -397,7 +391,6 @@ PeleC::setPlotVariables()
 
   amrex::ParmParse pp("pelec");
 
-#ifdef PELEC_USE_EB
   bool plot_vfrac = eb_in_domain;
   pp.query("plot_vfrac ", plot_vfrac);
   if (plot_vfrac) {
@@ -405,14 +398,13 @@ PeleC::setPlotVariables()
   } else if (amrex::Amr::isDerivePlotVar("vfrac")) {
     amrex::Amr::deleteDerivePlotVar("vfrac");
   }
-#endif
   bool plot_cost = true;
   pp.query("plot_cost", plot_cost);
   if (plot_cost) {
     amrex::Amr::addDerivePlotVar("WorkEstimate");
   }
 
-  if (do_react == 0) {
+  if (!do_react) {
     for (int i = 0; i < desc_lst[Reactions_Type].nComp(); i++) {
       amrex::Amr::deleteStatePlotVar(desc_lst[Reactions_Type].name(i));
     }
@@ -432,32 +424,6 @@ PeleC::setPlotVariables()
 
   bool plot_massfrac = false;
   pp.query("plot_massfrac", plot_massfrac);
-  //    if (plot_massfrac)
-  //    {
-  //	if (plot_massfrac)
-  //	{
-  //	    //
-  //	    // Get the species names from the network model.
-  //	    //
-  //	    for (int i = 0; i < NUM_SPECIES; i++)
-  //	    {
-  //		int len = 20;
-  //		Vector<int> int_spec_names(len);
-  //		// This call return the actual length of each string in "len"
-  //		get_spec_names(int_spec_names.dataPtr(),&i,&len);
-  //		char* spec_name = new char[len+1];
-  //		for (int j = 0; j < len; j++)
-  //		    spec_name[j] = int_spec_names[j];
-  //		spec_name[len] = '\0';
-  //		string spec_string = "Y(";
-  //		spec_string += spec_name;
-  //		spec_string += ')';
-  //		parent->addDerivePlotVar(spec_string);
-  //		delete [] spec_name;
-  //	    }
-  //	}
-  //    }
-
   if (plot_massfrac) {
     amrex::Amr::addDerivePlotVar("massfrac");
   } else {
@@ -555,6 +521,8 @@ PeleC::writeJobInfo(const std::string& dir)
   const char* githash1 = amrex::buildInfoGetGitHash(1);
   const char* githash2 = amrex::buildInfoGetGitHash(2);
   const char* githash3 = amrex::buildInfoGetGitHash(3);
+  const char* githash4 = amrex::buildInfoGetGitHash(4);
+  const char* githash5 = amrex::buildInfoGetGitHash(5);
   if (strlen(githash1) > 0) {
     jobInfoFile << "PeleC       git hash: " << githash1 << "\n";
   }
@@ -563,6 +531,12 @@ PeleC::writeJobInfo(const std::string& dir)
   }
   if (strlen(githash3) > 0) {
     jobInfoFile << "PelePhysics git hash: " << githash3 << "\n";
+  }
+  if (strlen(githash4) > 0) {
+    jobInfoFile << "AMReX-Hydro git hash: " << githash4 << "\n";
+  }
+  if (strlen(githash5) > 0) {
+    jobInfoFile << "SUNDIALS    git hash: " << githash5 << "\n";
   }
 
   const char* buildgithash = amrex::buildInfoGetBuildGitHash();
@@ -625,21 +599,6 @@ PeleC::writeJobInfo(const std::string& dir)
               << std::setw(7) << "Z"
               << "\n";
   jobInfoFile << OtherLine;
-  // Why is this here? It creates spec_name and deletes it?
-  //     int len = mlen;
-  //     amrex::Vector<int> int_spec_names(len * NUM_SPECIES);
-  //     CKSYMS(int_spec_names.dataPtr(),&len);
-  //     for (int i = 0; i < NUM_SPECIES; i++) {
-  //         int j = 0;
-  //         char* spec_name = new char[len];
-  //         for (j = 0; j < len; j++) {
-  //           spec_name[j] = int_spec_names[i*len + j];
-  //           if (spec_name[j] == ' ')
-  //             break;
-  //         }
-  //         spec_name[len] = '\0';
-  //         delete [] spec_name;
-  //     }
   jobInfoFile << "\n\n";
 
   // runtime parameters
@@ -700,6 +659,8 @@ PeleC::writeBuildInfo(std::ostream& os)
   const char* githash1 = amrex::buildInfoGetGitHash(1);
   const char* githash2 = amrex::buildInfoGetGitHash(2);
   const char* githash3 = amrex::buildInfoGetGitHash(3);
+  const char* githash4 = amrex::buildInfoGetGitHash(4);
+  const char* githash5 = amrex::buildInfoGetGitHash(5);
   if (strlen(githash1) > 0) {
     os << "PeleC       git hash: " << githash1 << "\n";
   }
@@ -708,6 +669,12 @@ PeleC::writeBuildInfo(std::ostream& os)
   }
   if (strlen(githash3) > 0) {
     os << "PelePhysics git hash: " << githash3 << "\n";
+  }
+  if (strlen(githash4) > 0) {
+    os << "AMReX-Hydro git hash: " << githash4 << "\n";
+  }
+  if (strlen(githash5) > 0) {
+    os << "SUNDIALS    git hash: " << githash5 << "\n";
   }
 
   const char* buildgithash = amrex::buildInfoGetBuildGitHash();
@@ -764,27 +731,11 @@ PeleC::writeBuildInfo(std::ostream& os)
      << "is undefined (0)" << std::endl;
 #endif
 
-#ifdef PELEC_USE_EB
-  os << std::setw(35) << std::left << "PELEC_USE_EB " << std::setw(6) << "ON"
-     << std::endl;
-#else
-  os << std::setw(35) << std::left << "PELEC_USE_EB " << std::setw(6) << "OFF"
-     << std::endl;
-#endif
-
 #ifdef PELEC_USE_MASA
   os << std::setw(35) << std::left << "PELEC_USE_MASA " << std::setw(6) << "ON"
      << std::endl;
 #else
   os << std::setw(35) << std::left << "PELEC_USE_MASA " << std::setw(6) << "OFF"
-     << std::endl;
-#endif
-
-#ifdef PELEC_USE_EB
-  os << std::setw(35) << std::left << "PELEC_USE_EB " << std::setw(6) << "ON"
-     << std::endl;
-#else
-  os << std::setw(35) << std::left << "PELEC_USE_EB " << std::setw(6) << "OFF"
      << std::endl;
 #endif
 
@@ -950,11 +901,9 @@ PeleC::writePlotFile(
       os << PathNameInHeader << '\n';
     }
 
-#ifdef PELEC_USE_EB
     if (eb_in_domain && level == parent->finestLevel()) {
       os << vfraceps << '\n';
     }
-#endif
   }
 
   // We combine all of the multifabs -- state, derived, etc -- into one
@@ -986,11 +935,6 @@ PeleC::writePlotFile(
       cnt += ncomp;
     }
   }
-
-#ifdef PELEC_USE_EB
-  // Prefer app-specific one
-  // amrex::EB_set_covered(plotMF);
-#endif
 
   // Use the Full pathname when naming the MultiFab.
   std::string TheFullPath = FullPath;
@@ -1177,4 +1121,115 @@ PeleC::writeSmallPlotFile(
   std::string TheFullPath = FullPath;
   TheFullPath += BaseName;
   amrex::VisMF::Write(plotMF, TheFullPath, how, true);
+}
+
+void
+PeleC::initLevelDataFromPlt(
+  const int lev, const std::string& dataPltFile, amrex::MultiFab& S_new)
+{
+  amrex::Print() << "Using data (rho, u, T, Y) from pltfile " << dataPltFile
+                 << std::endl;
+  pele::physics::pltfilemanager::PltFileManager pltData(dataPltFile);
+  const auto plt_vars = pltData.getVariableList();
+
+  // Read rho, u, temperature (required)
+  std::map<std::string, int> vars{
+    {"density", -1}, {"x_velocity", -1}, {"Temp", -1}};
+  for (auto& var : vars) {
+    var.second = find_position(plt_vars, var.first);
+    if (var.second == -1) {
+      amrex::Abort("Unable to find variable in plot file: " + var.first);
+    }
+  }
+  pltData.fillPatchFromPlt(lev, geom, vars["density"], URHO, 1, S_new);
+  pltData.fillPatchFromPlt(
+    lev, geom, vars["x_velocity"], UMX, AMREX_SPACEDIM, S_new);
+  pltData.fillPatchFromPlt(lev, geom, vars["Temp"], UTEMP, 1, S_new);
+
+  // Copy species from the plot file
+  for (int n = 0; n < spec_names.size(); n++) {
+    const auto& spec = spec_names.at(n);
+    const int pos = find_position(plt_vars, "Y(" + spec + ")");
+    if (pos != -1) {
+      pltData.fillPatchFromPlt(lev, geom, pos, UFS + n, 1, S_new);
+    }
+  }
+
+  // Sanity check the species, clean them up if they aren't too bad
+  auto sarrs = S_new.arrays();
+  const auto tol = init_pltfile_massfrac_tol;
+  amrex::ParallelFor(
+    S_new, [=] AMREX_GPU_DEVICE(int nbx, int i, int j, int k) noexcept {
+      auto sarr = sarrs[nbx];
+      amrex::Real sumY = 0.0;
+
+      for (int n = 0; n < NUM_SPECIES; n++) {
+        // if the species is not too far out of bounds, clip it
+        const auto mf = sarr(i, j, k, UFS + n);
+        if ((mf < 0.0) || (1.0 < mf)) {
+          if (((-tol < mf) && (mf < 0.0)) || ((1.0 < mf) && (mf < 1 + tol))) {
+            sarr(i, j, k, UFS + n) =
+              amrex::min<amrex::Real>(1.0, amrex::max<amrex::Real>(0.0, mf));
+          } else {
+#ifdef AMREX_USE_GPU
+            AMREX_DEVICE_PRINTF(
+              "Species mass fraction is out of bounds (spec, value): (%d, %g)",
+              n, mf);
+            amrex::Abort();
+#else
+            amrex::Abort(
+              "Species mass fraction is out of bounds (spec, value): ( " +
+              std::to_string(n) + ", " + std::to_string(mf) + ")");
+#endif
+          }
+        }
+
+        sumY += sarr(i, j, k, UFS + n);
+      }
+
+      // If the sumY isn't too far from 1, renormalize
+      if (amrex::Math::abs(1.0 - sumY) < tol) {
+        for (int n = 0; n < NUM_SPECIES; n++) {
+          sarr(i, j, k, UFS + n) /= sumY;
+        }
+      } else {
+#ifdef AMREX_USE_GPU
+        AMREX_DEVICE_PRINTF(
+          "Species mass fraction don't sum to 1. The sum is: %g", sumY);
+        amrex::Abort();
+#else
+        amrex::Abort(
+          "Species mass fraction don't sum to 1. The sum is: " +
+          std::to_string(sumY));
+#endif
+      }
+    });
+
+  // Convert to conserved variables
+  amrex::ParallelFor(
+    S_new, [=] AMREX_GPU_DEVICE(int nbx, int i, int j, int k) noexcept {
+      auto sarr = sarrs[nbx];
+      const amrex::Real rho = sarr(i, j, k, URHO);
+      const amrex::Real temp = sarr(i, j, k, UTEMP);
+      amrex::Real massfrac[NUM_SPECIES] = {0.0};
+      for (int n = 0; n < NUM_SPECIES; n++) {
+        massfrac[n] = sarr(i, j, k, UFS + n);
+        sarr(i, j, k, UFS + n) *= rho;
+      }
+      AMREX_D_TERM(sarr(i, j, k, UMX) *= rho;, sarr(i, j, k, UMY) *= rho;
+                   , sarr(i, j, k, UMZ) *= rho;)
+
+      auto eos = pele::physics::PhysicsType::eos();
+      amrex::Real eint = 0.0;
+      eos.RTY2E(rho, temp, massfrac, eint);
+
+      sarr(i, j, k, UEINT) = rho * eint;
+      sarr(i, j, k, UEDEN) =
+        rho * eint + 0.5 *
+                       (AMREX_D_TERM(
+                         sarr(i, j, k, UMX) * sarr(i, j, k, UMX),
+                         +sarr(i, j, k, UMY) * sarr(i, j, k, UMY),
+                         +sarr(i, j, k, UMZ) * sarr(i, j, k, UMZ))) /
+                       rho;
+    });
 }
