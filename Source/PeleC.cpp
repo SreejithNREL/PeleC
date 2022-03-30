@@ -712,28 +712,29 @@ PeleC::initData()
   }
   else {
 
-  if (init_pltfile.empty()) {
+    if (init_pltfile.empty()) {
 #ifdef _OPENMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
-    for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid();
-         ++mfi) {
-      const amrex::Box& box = mfi.tilebox();
-      auto sfab = S_new.array(mfi);
-      const auto geomdata = geom.data();
+      for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid();
+           ++mfi) {
+        const amrex::Box& box = mfi.tilebox();
+        auto sfab = S_new.array(mfi);
+        const auto geomdata = geom.data();
 
-      const ProbParmDevice* lprobparm = d_prob_parm_device;
+        const ProbParmDevice* lprobparm = d_prob_parm_device;
 
-      amrex::ParallelFor(
-        box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-          pc_initdata(i, j, k, sfab, geomdata, *lprobparm);
-          // Verify that the sum of (rho Y)_i = rho at every cell
-          pc_check_initial_species(i, j, k, sfab);
-        });
-    }
-  } else {
-    initLevelDataFromPlt(level, init_pltfile, S_new);
-  }
+        amrex::ParallelFor(
+          box, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+            pc_initdata(i, j, k, sfab, geomdata, *lprobparm);
+            // Verify that the sum of (rho Y)_i = rho at every cell
+            pc_check_initial_species(i, j, k, sfab);
+          });
+      }
+    } 
+    // else {
+    //   initLevelDataFromPlt(level, init_pltfile, S_new);
+    // }
   }
 
   enforce_consistent_e(S_new);
