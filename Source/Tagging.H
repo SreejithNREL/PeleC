@@ -42,8 +42,6 @@ struct TaggingParm
   amrex::Real dom_hbnd_y = 1.0e10;
   amrex::Real dom_lbnd_z = 1.0e10;
   amrex::Real dom_hbnd_z = 1.0e10;
-  amrex::Vector<amrex::Real> dom_lbnd[AMREX_SPACEDIM] = {{1.0e10}};
- // amrex::Vector<amrex::Real> dom_hbnd[AMREX_SPACEDIM] = {{1.0e10}};
   int max_dom_bnd_lev = 10;
 
   int max_eb_refine_lev = 10;
