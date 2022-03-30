@@ -204,6 +204,17 @@ PeleC::react_state(
               dt;
 
             frcEExt(i, j, k) = rhoedot_ext;
+
+            amrex::Real Ys[NUM_SPECIES];
+            for (int nsp = 0; nsp < NUM_SPECIES; nsp++) {
+              Ys[nsp] = rhoY(i, j, k, nsp)/rho_old;
+            }
+            
+            clip_normalize_Y(Ys);
+                
+            for (int nsp = 0; nsp < NUM_SPECIES; nsp++) {
+              rhoY(i, j, k, nsp) = Ys[nsp]*rho_old;
+            }
           });
 
         reactor->react(
