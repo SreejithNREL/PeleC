@@ -1,0 +1,22 @@
+#!/bin/bash -l
+
+# Notes: PeleC Perlmutter weak scaling study
+
+#SBATCH --partition=defq
+#SBATCH --job-name=scaling                                                                                         
+#   #SBATCH --time=24:00:00                                                                                                         
+#SBATCH --nodes=16
+#SBATCH --ntasks-per-node=32        # Request CPU cores per node
+#SBATCH --output=output_16nodes_zerork.out
+set -e
+
+cmd() {
+  echo "+ $@"
+  eval "$@"
+}
+
+# echo "Running with 4 ranks per node and 1 ranks per GPU on 16 nodes for a total of 64 ranks and 64 total GPUs..."
+
+export LD_LIBRARY_PATH=/lustre/scratch/bsouzas/PeleC_EBreflux/PeleC/Submodules/zerork/lib:${LD_LIBRARY_PATH}
+
+cmd "mpirun -np 512 /lustre/scratch/bsouzas/PeleC_EBreflux/PeleC/Exec/RegTests/PMF_ETPRF98/PeleC3d.intel.MPI.ex inputs.3d amr.n_cell=128 256 128 geometry.prob_lo=-2.5 -5.0 -1.5 geometry.prob_hi=2.5 5.0 3.5 amr.max_level=0 max_step=10 amr.plot_files_output=0 amr.plot_int=20 amr.checkpoint_files_output=0 pelec.do_mol=1 pelec.ppm_type=1 pelec.chem_integrator=ReactorZeroRK cvode.solve_type=GMRES prob.pamb=5.0e+6 prob.phi_in=-0.5 prob.pertmag=0.005 tagging.max_ftracerr_lev=4 tagging.ftracerr=1.0e-4 amrex.abort_on_out_of_gpu_memory=1 ode.rtol=1.0e-6 ode.atol=1.0e-10 pelec.cfl=0.1 pelec.init_shrink=1.0 pelec.change_max=1.0 pelec.dt_cutoff=5.e-20"
