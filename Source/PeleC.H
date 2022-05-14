@@ -679,6 +679,9 @@ protected:
   static amrex::Vector<std::string> spec_names;
 
   static amrex::Vector<int> src_list;
+  static bool use_chem_mask;
+  static amrex::Vector<amrex::Real> lo_chem_mask_coordinate;
+  static amrex::Vector<amrex::Real> hi_chem_mask_coordinate;
 
   static bool use_typical_vals_chem;
   static bool use_typical_vals_chem_usr;
