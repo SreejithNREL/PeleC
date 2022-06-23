@@ -23,7 +23,7 @@ amrex::Real heavyside_device(amrex::Real t){
     return x;
   }
   else if(t == 0.0){
-    amrex::Real x = 0.5;
+    amrex::Real x = 0.0;
     return x;    
   }
   else{
@@ -57,8 +57,11 @@ void LTP_ignition_source(
 
   amrex::Real x = 1.e-2*(prob_lo[0] + (i + 0.5) * dx[0]); // [m]
   amrex::Real y = 1.e-2*(prob_lo[1] + (j + 0.5) * dx[1] - kernel_offset); //setting y to be zero at the cathode tip [m]
+#if AMREX_SPACEDIM == 3
   amrex::Real z = 1.e-2*(prob_lo[2] + (k + 0.5) * dx[2]); // [m]
-
+#else
+  amrex::Real z = x;
+#endif
 
   amrex::Real alpha   = 1.05;
   amrex::Real beta    = 0.98;
@@ -73,9 +76,12 @@ void LTP_ignition_source(
   amrex::Real N       = prob_parm.npulses;    //Number of pulses
   // amrex::Real A       = 1.5e+14*1.e-06*1.e+7;  //base power [J/m3/s] -> [erg/cm3/s]
   amrex::Real A       = prob_parm.base_power*1.e-06*1.e+7;  //base power [J/m3/s] -> [erg/cm3/s]
-  // A = A * dx[0]*dx[1]*dx[2]; // [erg/s]
 
-  amrex::Real t = time - 1.0e-3; //time used to account for local convection of the ignition source
+  amrex::Real t = 0.0;
+  // if(time >= prob_parm.ltp_start_time){
+  //   t = time - prob_parm.ltp_start_time; //time used to compute parameter B
+  // }
+  t = time;
   
   //parameter B controls ignition over time
   amrex::Real B = (1.+ floor(t/tau_p - 1) - floor(t/tau_p - tau_hat))*heavyside_device(t-floor(t/N/tau_p));
@@ -97,6 +103,7 @@ void LTP_ignition_source(
     // z = z - t*Vel[2];
 
     if(y > zc and y < za){
+      // amrex::Print() << "In LTP_ignition_source: B = " << B << "  t = " << t << std::endl;
       amrex::Real ha;
       if(y >= zi and y <= za){
         amrex::Real da = zi*zi-2.0*zi*za+za*za;

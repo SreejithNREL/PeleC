@@ -97,6 +97,9 @@ PeleC::fill_ext_source(
                       Sn,
                       ign_energy);
 
+      // if(ign_energy > 10){
+      //   amrex::Print() << "ign_energy = " << ign_energy << std::endl;
+      // }
 // if(ign_energy > 1.0e+12){
 //   printf("ign_energy = %e\n", ign_energy);
 // }
@@ -107,19 +110,19 @@ PeleC::fill_ext_source(
       });
   }
 
-  //New development branch implementation. Set source terms to zero for covered cells
-  // auto const& Sos = state_old.const_arrays();
-  // auto const& Sns = state_new.const_arrays();
-  auto const& Farrs = ext_src.arrays();
-  auto const& flagarrs = flags.const_arrays();
-  const amrex::IntVect ngs(ng);
-  amrex::ParallelFor(
-    ext_src, ngs, NVAR,
-    [=] AMREX_GPU_DEVICE(int nbx, int i, int j, int k, int n) noexcept {
-      if (!flagarrs[nbx](i, j, k).isCovered()) {
-        Farrs[nbx](i, j, k, n) = 0.0;
-      }
-    });
+  // //New development branch implementation. Set source terms to zero for covered cells
+  // // auto const& Sos = state_old.const_arrays();
+  // // auto const& Sns = state_new.const_arrays();
+  // auto const& Farrs = ext_src.arrays();
+  // auto const& flagarrs = flags.const_arrays();
+  // const amrex::IntVect ngs(ng);
+  // amrex::ParallelFor(
+  //   ext_src, ngs, NVAR,
+  //   [=] AMREX_GPU_DEVICE(int nbx, int i, int j, int k, int n) noexcept {
+  //     if (!flagarrs[nbx](i, j, k).isCovered()) {
+  //       Farrs[nbx](i, j, k, n) = 0.0;
+  //     }
+  //   });
 }
 
 
