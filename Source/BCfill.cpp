@@ -124,11 +124,6 @@ struct PCHypFillExtDir
           s_ext[n] = dest(iv, n);
         }
       }
-      if(iv[idir] == domlo[idir]-1){
-        for (int n = 0; n < NVAR; n++) {
-          s_ext[n] = dest(iv[0], iv[1], iv[2], n);
-        }
-      }
       bcnormal(x, s_int, s_ext, idir, +1, time, geom, *lprobparm);
       for (int n = 0; n < NVAR; n++) {
         dest(iv, n) = s_ext[n];
@@ -143,11 +138,6 @@ struct PCHypFillExtDir
       if (m_do_turb_inflow && (iv[idir] == domlo[idir] + 1)) {
         for (int n = 0; n < NVAR; n++) {
           s_ext[n] = dest(iv, n);
-        }
-      }
-      if(iv[idir] == domlo[idir]+1){
-        for (int n = 0; n < NVAR; n++) {
-          s_ext[n] = dest(iv[0], iv[1], iv[2], n);
         }
       }
       bcnormal(x, s_int, s_ext, idir, -1, time, geom, *lprobparm);
