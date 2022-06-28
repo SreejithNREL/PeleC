@@ -43,7 +43,8 @@ void LTP_ignition_source(
   amrex::GeometryData const& geomdata,
   ProbParmDevice const& prob_parm,
   amrex::Array4<const amrex::Real> const& state,
-  amrex::Real& S_ltp){ 
+  amrex::Real& S_ltp,
+  amrex::GpuArray<amrex::Real, NUM_SPECIES>& omega){ 
 
   const amrex::Real* prob_lo = geomdata.ProbLo();
   const amrex::Real* prob_hi = geomdata.ProbHi();
@@ -74,14 +75,18 @@ void LTP_ignition_source(
   amrex::Real tau_p   = prob_parm.dwell;             //inter-pulse width [s]
   amrex::Real tau_hat = ign_duration/tau_p;   //pulse width
   amrex::Real N       = prob_parm.npulses;    //Number of pulses
-  // amrex::Real A       = 1.5e+14*1.e-06*1.e+7;  //base power [J/m3/s] -> [erg/cm3/s]
-  amrex::Real A       = prob_parm.base_power*1.e-06*1.e+7;  //base power [J/m3/s] -> [erg/cm3/s]
+  // amrex::Real Ep       = 1.5e+14*1.e-06*1.e+7;  //base power [J/m3/s] -> [erg/cm3/s]
+  amrex::Real Ep       = prob_parm.base_power*1.e-06*1.e+7;  //base power [J/m3/s] -> [erg/cm3/s]
+
+  //variables related to Castela's model
+  amrex::Real alpha_castela = 1.0; // fraction of energy going to ultrafast dissociation and heating. We are not accounting for vibrational energy so alpha is 1
+  amrex::Real g_chem = 0.35; //fraction of energy going to ultrafast dissociation
 
   amrex::Real t = 0.0;
-  // if(time >= prob_parm.ltp_start_time){
-  //   t = time - prob_parm.ltp_start_time; //time used to compute parameter B
-  // }
-  t = time;
+  if(time >= prob_parm.ltp_start_time){
+    t = time - prob_parm.ltp_start_time; //time used to compute parameter B
+  }
+  // t = time;
   
   //parameter B controls ignition over time
   amrex::Real B = (1.+ floor(t/tau_p - 1) - floor(t/tau_p - tau_hat))*heavyside_device(t-floor(t/N/tau_p));
@@ -146,7 +151,46 @@ void LTP_ignition_source(
 
       amrex::Real f = exp(-((x*x + z*z)/delta_g/delta_g/2. + pow((y-mz),2.)/delta_f/delta_f/2.));
 
-      S_ltp = A*B*(f+g*(ha+hc));
+      amrex::Real energy_dist = B*(f+g*(ha+hc));
+      // Done computing spatial distribution. 
+      // Lets now move to the division of deposited energy into ultrafast heating and species dissociation
+      
+
+      amrex::Real massfrac[NUM_SPECIES]; 
+      amrex::Real Y_O2_U; //Oxygen massfraction in the oxidizer
+      amrex::Real e[NUM_SPECIES]; //internal energy
+      amrex::Real mw[NUM_SPECIES]; //molecular weights
+      
+      //local massfraction
+      for (int n = 0; n < NUM_SPECIES; n++)
+        massfrac[n] = state(i, j, k, UFS+n)/state(i, j, k, URHO);
+
+      auto eos = pele::physics::PhysicsType::eos();
+      eos.T2Ei(state(i, j, k, UTEMP), e);
+      eos.molecular_weight(mw);
+
+      //Oxygen massfraction in the oxidizer
+      Y_O2_U = prob_parm.fuel_state[UFS + O2_ID]/prob_parm.fuel_state[URHO];
+      
+      //Reaction source terms for ultrafast dissociation. Units [g/cm3/s]
+      omega[O_ID]  = g_chem * massfrac[O2_ID]/Y_O2_U * Ep/e[O_ID];
+      omega[O2_ID] = - mw[O_ID]/mw[O2_ID] * omega[O_ID];
+
+      // amrex::Print() << "Inside model: omega[O_ID]  " << omega[O_ID] << std::endl;
+      // amrex::Print() << "Inside model: omega[O2_ID] " << omega[O2_ID] << std::endl;
+
+
+      //discharge energy consumed in the dissociation process
+      amrex::Real E_chem = Ep * g_chem * massfrac[O2_ID]/Y_O2_U*(1 - mw[O_ID]/mw[O2_ID] * e[O2_ID]/e[O_ID]);
+
+      //discharge energy used to ultrafast gas heating
+      amrex::Real E_heat = alpha_castela*Ep - E_chem;
+
+      //Taking into account energy distribution from Vyaas' model
+      for (int n = 0; n < NUM_SPECIES; n++)
+        omega[n] *= energy_dist;
+
+      S_ltp = E_heat*energy_dist;
     }
   }
 }
