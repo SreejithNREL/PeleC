@@ -83,8 +83,7 @@ Blocs += $(REACTIONS_HOME)
 include $(PELE_PHYSICS_HOME)/ThirdParty/Make.ThirdParty
 
 ifdef Chemistry_Model
-  CHEM_HOME = $(PELE_PHYSICS_HOME)/Support/Fuego/Mechanism/Models/$(Chemistry_Model)
-  Blocs += $(PELE_PHYSICS_HOME)/Support/Fuego/Evaluation
+  CHEM_HOME = $(PELE_PHYSICS_HOME)/Support/Mechanism/Models/$(Chemistry_Model)
 endif
 VPATH_LOCATIONS += $(CHEM_HOME)
 Bpack += $(CHEM_HOME)/Make.package
@@ -112,19 +111,6 @@ Bdirs := $(PELEC_HOME)/Source $(PELEC_HOME)/Source/Params/param_includes
 Pdirs := Base Amr Boundary AmrCore EB Extern/amrdata
 Bpack += $(AMREX_HYDRO_HOME)/Redistribution/Make.package $(AMREX_HYDRO_HOME)/Slopes/Make.package
 Blocs += $(AMREX_HYDRO_HOME)/Redistribution $(AMREX_HYDRO_HOME)/Slopes
-
-ifeq ($(USE_PARTICLES), TRUE)
-  DEFINES+=-DAMREX_PARTICLES
-  Pdirs += Particle
-  DEFINES+=-DSPRAY_FUEL_NUM=$(SPRAY_FUEL_NUM)
-  ifeq ($(USE_SPRAY_SOA), TRUE)
-    DEFINES+=-DUSE_SPRAY_SOA
-  endif
-  Bpack   += $(PELEC_MP_HOME)/Source/PP_Spray/Make.package
-  Blocs   += $(PELEC_MP_HOME)/Source/PP_Spray
-  INCLUDE_LOCATIONS += $(AMREX_HOME)/Src/Particle
-  VPATH_LOCATIONS   += $(AMREX_HOME)/Src/Particle
-endif
 
 Bpack += $(foreach dir, $(Pdirs), $(AMREX_HOME)/Src/$(dir)/Make.package)
 Blocs += $(foreach dir, $(Pdirs), $(AMREX_HOME)/Src/$(dir))
@@ -161,13 +147,16 @@ clean::
 	$(SILENT) $(RM) AMReX_buildInfo.cpp
 
 TPL:
-	cd $(PELE_PHYSICS_HOME)/ThirdParty; make AMREX_HOME=$(AMREX_HOME) USE_CUDA=$(USE_CUDA) USE_HIP=$(USE_HIP) USE_DPCPP=$(USE_DPCPP) DEBUG=$(DEBUG) COMP=$(HOSTCC) NVCC=$(COMP)
+	@echo "==> Building SUNDIALS library"
+	cd $(PELE_PHYSICS_HOME)/ThirdParty; $(MAKE) sundials AMREX_HOME=$(AMREX_HOME) USE_CUDA=$(USE_CUDA) USE_HIP=$(USE_HIP) PELE_USE_KLU=$(PELE_USE_KLU) PELE_USE_MAGMA=$(PELE_USE_MAGMA) DEBUG=$(DEBUG) COMP=$(COMP) NVCC=$(COMP) PRECISION=$(PRECISION)
 
 TPLclean:
-	cd $(PELE_PHYSICS_HOME)/ThirdParty; make AMREX_HOME=$(AMREX_HOME) USE_CUDA=$(USE_CUDA) USE_HIP=$(USE_HIP) USE_DPCPP=$(USE_DPCPP) DEBUG=$(DEBUG) COMP=$(HOSTCC) NVCC=$(COMP) clean
+	@echo "==> Removing SUNDIALS library"
+	cd $(PELE_PHYSICS_HOME)/ThirdParty; make AMREX_HOME=$(AMREX_HOME) USE_CUDA=$(USE_CUDA) USE_HIP=$(USE_HIP) PELE_USE_KLU=$(PELE_USE_KLU) PELE_USE_MAGMA=$(PELE_USE_MAGMA) DEBUG=$(DEBUG) COMP=$(HOSTCC) NVCC=$(COMP) PRECISION=$(PRECISION) clean
 
 TPLrealclean:
-	cd $(PELE_PHYSICS_HOME)/ThirdParty; make AMREX_HOME=$(AMREX_HOME) USE_CUDA=$(USE_CUDA) USE_HIP=$(USE_HIP) USE_DPCPP=$(USE_DPCPP) DEBUG=$(DEBUG) COMP=$(HOSTCC) NVCC=$(COMP) realclean
+	@echo "==> Removing SUNDIALS library"
+	cd $(PELE_PHYSICS_HOME)/ThirdParty; make AMREX_HOME=$(AMREX_HOME) USE_CUDA=$(USE_CUDA) USE_HIP=$(USE_HIP) PELE_USE_KLU=$(PELE_USE_KLU) PELE_USE_MAGMA=$(PELE_USE_MAGMA) DEBUG=$(DEBUG) COMP=$(HOSTCC) NVCC=$(COMP) PRECISION=$(PRECISION) realclean
 
 #-----------------------------------------------------------------------------
 # for debugging.  To see the value of a Makefile variable,

@@ -13,6 +13,7 @@
 #endif
 
 #include "PeleC.H"
+#include "PeleCAmr.H"
 
 std::string inputs_name;
 
@@ -21,12 +22,19 @@ initialize_EB2(const amrex::Geometry& geom, int required_level, int max_level);
 
 amrex::LevelBld* getLevelBld();
 
+void
+override_default_parameters()
+{
+  amrex::ParmParse pp("eb2");
+  if (not pp.contains("geom_type")) {
+    std::string geom_type("all_regular");
+    pp.add("geom_type", geom_type);
+  }
+}
+
 int
 main(int argc, char* argv[])
 {
-  // Use this to trap NaNs in C++
-  // feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW | FE_UNDERFLOW);
-
   if (argc <= 1) {
     amrex::Abort("Error: no inputs file provided on command line.");
   }
@@ -42,7 +50,8 @@ main(int argc, char* argv[])
   }
 
   // Make sure to catch new failures.
-  amrex::Initialize(argc, argv);
+  amrex::Initialize(
+    argc, argv, true, MPI_COMM_WORLD, override_default_parameters);
 // Defined and initialized when in gnumake, but not defined in cmake and
 // initialization done manually
 #ifndef AMREX_USE_SUNDIALS
@@ -110,7 +119,7 @@ main(int argc, char* argv[])
   }
 
   // Initialize random seed after we're running in parallel.
-  auto* amrptr = new amrex::Amr(getLevelBld());
+  auto* amrptr = new PeleCAmr(getLevelBld());
 
   amrex::AmrLevel::SetEBSupportLevel(
     amrex::EBSupport::full); // need both area and volume fractions

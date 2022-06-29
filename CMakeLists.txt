@@ -11,6 +11,7 @@ include(PeleCUtils)
 
 #General options for all executables in the project
 set(PELEC_DIM "3" CACHE STRING "Number of physical dimensions")
+option(PELEC_ENABLE_AMREX_PARTICLES "Enable particles in AMReX library" OFF)
 option(PELEC_ENABLE_CLANG_TIDY "Enable clang-tidy analysis" OFF)
 option(PELEC_ENABLE_CPPCHECK "Enable cppcheck analysis" OFF)
 option(PELEC_ENABLE_MASA "Enable tests that require MASA" OFF)
@@ -20,6 +21,8 @@ option(PELEC_SAVE_GOLDS "Enable saving of gold files to a specified directory" O
 option(PELEC_ENABLE_SANITIZE_FOR_TESTS "Currently only disables certain long running MMS tests if set" OFF)
 option(PELEC_ENABLE_FPE_TRAP_FOR_TESTS "Enable FPE trapping in tests" ON)
 option(PELEC_ENABLE_TINY_PROFILE "Enable tiny profiler in AMReX" OFF)
+option(PELEC_ENABLE_HDF5 "Enable plot file output using HDF5" OFF)
+option(PELEC_ENABLE_HDF5_ZFP "Enable ZFP compression in HDF5" OFF)
 set(PELEC_PRECISION "DOUBLE" CACHE STRING "Floating point precision SINGLE or DOUBLE")
 
 #Options for performance
@@ -62,13 +65,17 @@ if(CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
   message(WARNING "Disabling FPE trapping for tests when using AppleClang.")
 endif()
 
+if(PELEC_ENABLE_HDF5_ZFP AND (NOT PELEC_ENABLE_HDF5))
+   message(FATAL_ERROR "HDF5 must be enabled to use ZFP compression in HDF5 plot files")
+endif()
+
 ########################### AMReX #####################################
 
 message(STATUS "AMReX Configure Section")
 set(AMREX_SUBMOD_LOCATION "${CMAKE_SOURCE_DIR}/Submodules/AMReX")
 include(SetAmrexOptions)
 list(APPEND CMAKE_MODULE_PATH "${AMREX_SUBMOD_LOCATION}/Tools/CMake")
-if(PELEC_ENABLE_CUDA)
+if(PELEC_ENABLE_CUDA AND (CMAKE_VERSION VERSION_LESS 3.20))
   include(AMReX_SetupCUDA)
 endif()
 add_subdirectory(${AMREX_SUBMOD_LOCATION})
@@ -94,7 +101,6 @@ add_subdirectory(${SUNDIALS_SUBMOD_LOCATION})
 
 if(PELEC_ENABLE_MASA)
   message(STATUS "MASA Configure Section")
-  set(CMAKE_PREFIX_PATH ${MASA_DIR} ${CMAKE_PREFIX_PATH})
   find_package(MASA QUIET REQUIRED)
   if(MASA_FOUND)
     message(STATUS "Found MASA = ${MASA_DIR}")
@@ -116,9 +122,6 @@ message(STATUS "CMAKE_CXX_COMPILER_VERSION = ${CMAKE_CXX_COMPILER_VERSION}")
 message(STATUS "CMAKE_BUILD_TYPE = ${CMAKE_BUILD_TYPE}")
 
 message(STATUS "PELEC_PRECISION = ${PELEC_PRECISION}")
-if("${PELEC_PRECISION}" STREQUAL "SINGLE")
-  message(FATAL_ERROR "Single precision currently not allowed in AMReX with EB enabled")
-endif()
 if("${PELEC_PRECISION}" STREQUAL "SINGLE" AND PELEC_ENABLE_MASA)
   message(FATAL_ERROR "Single precision currently not allowed in AMReX with MASA enabled")
 endif()
@@ -131,5 +134,5 @@ add_subdirectory(Exec)
 
 enable_testing()
 include(CTest)
-add_subdirectory("Submodules/GoogleTest")
+#add_subdirectory("Submodules/GoogleTest")
 add_subdirectory(Tests)

@@ -1,4 +1,4 @@
-#ifdef _OPENMP
+#ifdef AMREX_USE_OMP
 #include <omp.h>
 #endif
 
@@ -101,6 +101,7 @@ PeleC::fill_mms_source(
         }
       }
     });
+  amrex::Gpu::synchronize();
 
   amrex::MultiFab::Copy(mms_src, mms_source, 0, 0, NVAR, ng);
   mms_src_evaluated = true;

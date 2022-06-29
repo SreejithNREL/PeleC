@@ -125,6 +125,7 @@ PeleC::fill_ext_source(
   //       Farrs[nbx](i, j, k, n) = 0.0;
   //     }
   //   });
+  // amrex::Gpu::synchronize();
 }
 
 
@@ -172,5 +173,6 @@ amrex::Real heavyside(amrex::Real t){
     amrex::Real x = 1.0;
     return x;
   }
+
 }
 #endif

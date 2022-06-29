@@ -80,7 +80,7 @@ PeleC::initialize_eb2_structs()
     amrex::Abort();
   }
 
-#ifdef _OPENMP
+#ifdef AMREX_USE_OMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
   for (amrex::MFIter mfi(vfrac, false); mfi.isValid(); ++mfi) {
@@ -191,7 +191,7 @@ PeleC::initialize_eb2_structs()
       }
     }
 
-#ifdef _OPENMP
+#ifdef AMREX_USE_OMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for (amrex::MFIter mfi(vfrac, false); mfi.isValid(); ++mfi) {
@@ -380,6 +380,7 @@ PeleC::set_body_state(amrex::MultiFab& S)
       pc_set_body_state(
         i, j, k, n, flagarrs[nbx], captured_body_state, sarrs[nbx]);
     });
+  amrex::Gpu::synchronize();
 }
 
 void
@@ -403,6 +404,7 @@ PeleC::zero_in_body(amrex::MultiFab& S) const
     [=] AMREX_GPU_DEVICE(int nbx, int i, int j, int k, int n) noexcept {
       pc_set_body_state(i, j, k, n, flagarrs[nbx], zeros, sarrs[nbx]);
     });
+  amrex::Gpu::synchronize();
 }
 
 // Sets up implicit function using EB2 infrastructure
@@ -459,7 +461,7 @@ PeleC::initialize_signed_distance()
                         static_cast<amrex::Real>(parent->refRatio(ilev - 1)[0]),
                         static_cast<amrex::Real>(ilev));
     }
-    extentFactor *= std::sqrt(2.0); // Account for diagonals
+    extentFactor *= tagging_parm->detag_eb_factor;
 
     amrex::MultiFab signDist(
       convert(grids, amrex::IntVect::TheUnitVector()), dmap, 1, 1,
@@ -482,6 +484,7 @@ PeleC::initialize_signed_distance()
             sd_nd(i, j + 1, k + 1) + sd_nd(i + 1, j + 1, k + 1));
         sd_cc(i, j, k) *= fac;
       });
+    amrex::Gpu::synchronize();
 
     signed_dist_0.FillBoundary(parent->Geom(0).periodicity());
     extend_signed_distance(&signed_dist_0, extentFactor);
@@ -579,13 +582,14 @@ PeleC::extend_signed_distance(
         sd_cc(i, j, k) = nGrowFac * dx[0] * extendFactor;
       }
     });
+  amrex::Gpu::synchronize();
 
   // Iteratively compute the distance function in boxes, propagating accross
   // boxes using ghost cells If needed, increase the number of loop to extend
   // the reach of the distance function
   const int nMaxLoop = 4;
   for (int dloop = 1; dloop <= nMaxLoop; dloop++) {
-#ifdef _OPENMP
+#ifdef AMREX_USE_OMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for (amrex::MFIter mfi(*signDist, amrex::TilingIfNotGPU()); mfi.isValid();
@@ -633,86 +637,85 @@ PeleC::extend_signed_distance(
   }
 }
 
-// void
-// PeleC::InitialRedistribution(
-//   const amrex::Real time,
-//   const amrex::Vector<amrex::BCRec> bcs,
-//   amrex::MultiFab& S_new)
-// {
-//   BL_PROFILE("PeleC::InitialRedistribution()");
+void
+PeleC::InitialRedistribution(
+  const amrex::Real time,
+  const amrex::Vector<amrex::BCRec> bcs,
+  amrex::MultiFab& S_new)
+{
+  BL_PROFILE("PeleC::InitialRedistribution()");
 
-//   // Don't redistribute if there is no EB or if the redistribution type is
-//   // anything other than StateRedist
-//   if (
-//     (!eb_in_domain) ||
-//     ((eb_in_domain) && (redistribution_type != "StateRedist"))) {
-//     return;
-//   }
+  // Don't redistribute if there is no EB or if the redistribution type is
+  // anything other than StateRedist
+  if ((!eb_in_domain) || (redistribution_type != "StateRedist")) {
+    return;
+  }
 
-//   if (verbose != 0) {
-//     amrex::Print() << "Doing initial redistribution... " << std::endl;
-//   }
+  if (verbose != 0) {
+    amrex::Print() << "Doing initial redistribution... " << std::endl;
+  }
 
-//   // Initial data are set at new time step
-//   amrex::MultiFab tmp(
-//     grids, dmap, S_new.nComp(), numGrow(), amrex::MFInfo(), Factory());
+  // Initial data are set at new time step
+  amrex::MultiFab tmp(
+    grids, dmap, S_new.nComp(), numGrow(), amrex::MFInfo(), Factory());
 
-//   amrex::MultiFab::Copy(tmp, S_new, 0, 0, S_new.nComp(), S_new.nGrow());
-//   FillPatch(*this, tmp, numGrow(), time, State_Type, 0, S_new.nComp());
-//   EB_set_covered(tmp, 0.0);
+  amrex::MultiFab::Copy(tmp, S_new, 0, 0, S_new.nComp(), S_new.nGrow());
+  FillPatch(*this, tmp, numGrow(), time, State_Type, 0, S_new.nComp());
+  EB_set_covered(tmp, 0.0);
 
-//   amrex::Gpu::DeviceVector<amrex::BCRec> d_bcs(bcs.size());
-//   amrex::Gpu::copy(
-//     amrex::Gpu::hostToDevice, bcs.begin(), bcs.end(), d_bcs.begin());
+  amrex::Gpu::DeviceVector<amrex::BCRec> d_bcs(bcs.size());
+  amrex::Gpu::copy(
+    amrex::Gpu::hostToDevice, bcs.begin(), bcs.end(), d_bcs.begin());
 
-//   for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid();
-//        ++mfi) {
-//     const amrex::Box& bx = mfi.validbox();
+  for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid();
+       ++mfi) {
+    const amrex::Box& bx = mfi.validbox();
 
-//     auto const& fact =
-//       dynamic_cast<amrex::EBFArrayBoxFactory const&>(S_new.Factory());
+    auto const& fact =
+      dynamic_cast<amrex::EBFArrayBoxFactory const&>(S_new.Factory());
 
-//     auto const& flags = fact.getMultiEBCellFlagFab()[mfi];
-//     amrex::Array4<const amrex::EBCellFlag> const& flag_arr =
-//       flags.const_array();
+    auto const& flags = fact.getMultiEBCellFlagFab()[mfi];
+    amrex::Array4<const amrex::EBCellFlag> const& flag_arr =
+      flags.const_array();
 
-//     if (
-//       (flags.getType(amrex::grow(bx, 1)) != amrex::FabType::covered) &&
-//       (flags.getType(amrex::grow(bx, 1)) != amrex::FabType::regular)) {
-//       amrex::Array4<const amrex::Real> AMREX_D_DECL(fcx, fcy, fcz), ccc,
-//         AMREX_D_DECL(apx, apy, apz);
+    if (
+      (flags.getType(amrex::grow(bx, 1)) != amrex::FabType::covered) &&
+      (flags.getType(amrex::grow(bx, 1)) != amrex::FabType::regular)) {
+      amrex::Array4<const amrex::Real> AMREX_D_DECL(fcx, fcy, fcz), ccc,
+        AMREX_D_DECL(apx, apy, apz);
 
-//       AMREX_D_TERM(fcx = facecent[0]->const_array(mfi);
-//                    , fcy = facecent[1]->const_array(mfi);
-//                    , fcz = facecent[2]->const_array(mfi););
+      AMREX_D_TERM(fcx = facecent[0]->const_array(mfi);
+                   , fcy = facecent[1]->const_array(mfi);
+                   , fcz = facecent[2]->const_array(mfi););
 
-//       ccc = fact.getCentroid().const_array(mfi);
+      ccc = fact.getCentroid().const_array(mfi);
 
-//       AMREX_D_TERM(apx = areafrac[0]->const_array(mfi);
-//                    , apy = areafrac[1]->const_array(mfi);
-//                    , apz = areafrac[2]->const_array(mfi););
+      AMREX_D_TERM(apx = areafrac[0]->const_array(mfi);
+                   , apy = areafrac[1]->const_array(mfi);
+                   , apz = areafrac[2]->const_array(mfi););
 
-//       const auto& sarr = S_new.array(mfi);
-//       const auto& tarr = tmp.array(mfi);
-//       Redistribution::ApplyToInitialData(
-//         bx, NVAR, sarr, tarr, flag_arr, AMREX_D_DECL(apx, apy, apz),
-//         vfrac.const_array(mfi), AMREX_D_DECL(fcx, fcy, fcz), ccc,
-//         d_bcs.dataPtr(), geom, redistribution_type, eb_srd_max_order);
+      const auto& sarr = S_new.array(mfi);
+      const auto& tarr = tmp.array(mfi);
+      Redistribution::ApplyToInitialData(
+        bx, NVAR, sarr, tarr, flag_arr, AMREX_D_DECL(apx, apy, apz),
+        vfrac.const_array(mfi), AMREX_D_DECL(fcx, fcy, fcz), ccc,
+        d_bcs.dataPtr(), geom, redistribution_type, eb_srd_max_order);
 
-//       // Make sure rho is same as sum rhoY after redistribution
-//       amrex::ParallelFor(
-//         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-//           amrex::Real drhoYsum = 0.0;
-//           for (int n = 0; n < NUM_SPECIES; n++) {
-//             drhoYsum += sarr(i, j, k, UFS + n) - tarr(i, j, k, UFS + n);
-//           }
-//           sarr(i, j, k, URHO) = tarr(i, j, k, URHO) + drhoYsum;
-//         });
-//       amrex::ParallelFor(
-//         bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-//           pc_check_initial_species(i, j, k, sarr);
-//         });
-//     }
-//   }
-//   set_body_state(S_new);
-// }
+      // Make sure rho is same as sum rhoY after redistribution
+      amrex::ParallelFor(
+        bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+          amrex::Real drhoYsum = 0.0;
+          for (int n = 0; n < NUM_SPECIES; n++) {
+            drhoYsum += sarr(i, j, k, UFS + n) - tarr(i, j, k, UFS + n);
+          }
+          sarr(i, j, k, URHO) = tarr(i, j, k, URHO) + drhoYsum;
+        });
+      amrex::ParallelFor(
+        bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+          pc_check_initial_species(i, j, k, sarr);
+        });
+    }
+  }
+  set_body_state(S_new);
+}
+

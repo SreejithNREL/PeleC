@@ -526,7 +526,7 @@ pc_eb_div(
         const amrex::Real kappa_inv =
           1.0 / amrex::max<amrex::Real>(vf(iv), 1.0e-12);
         amrex::Real tmp;
-#ifdef _OPENMP
+#ifdef AMREX_USE_OMP
 #pragma omp atomic read
 #endif
         tmp = ebflux[n * Ncut + L];
@@ -668,7 +668,9 @@ pc_apply_eb_boundry_visc_flux_stencil(
       }
 
       const amrex::Real tauDotN[AMREX_SPACEDIM] = {AMREX_D_DECL(
-        ((4.0 / 3.0) * coeff(iv, dComp_mu) + coeff(iv, dComp_xi)) * dUtdn[0],
+        (static_cast<amrex::Real>(4.0 / 3.0) * coeff(iv, dComp_mu) +
+         coeff(iv, dComp_xi)) *
+          dUtdn[0],
         coeff(iv, dComp_mu) * dUtdn[1], coeff(iv, dComp_mu) * dUtdn[2])};
 
       for (int idir = 0; idir < AMREX_SPACEDIM; idir++) {

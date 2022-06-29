@@ -1,5 +1,5 @@
-#ifndef _PROB_PARM_H_
-#define _PROB_PARM_H_
+#ifndef PROB_PARM_H
+#define PROB_PARM_H
 
 #include <AMReX_GpuQualifiers.H>
 #include <AMReX_REAL.H>
@@ -25,6 +25,7 @@ struct ProbParmDevice
   amrex::Real inj_dur = .5e-3;
   amrex::Real tau = 0.01;
   amrex::Real Z = 0.45;
+  bool turbulent_inflow = false;
 
   bool binfmt = false;
   bool hitIC = false;

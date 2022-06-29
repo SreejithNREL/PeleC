@@ -1,5 +1,5 @@
-#ifndef _Derive_H_
-#define _Derive_H_
+#ifndef Derive_H
+#define Derive_H
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Geometry.H>
@@ -154,6 +154,17 @@ void pc_derlogden(
   const int level);
 
 void pc_derspec(
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int dcomp,
+  int ncomp,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& geomdata,
+  amrex::Real time,
+  const int* bcrec,
+  const int level);
+
+void pc_deradv(
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int dcomp,

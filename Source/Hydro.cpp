@@ -77,7 +77,7 @@ PeleC::construct_hydro_source(
     amrex::Real yang_lost = 0.;
     amrex::Real zang_lost = 0.;
 
-#ifdef _OPENMP
+#ifdef AMREX_USE_OMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())               \
     reduction(+:E_added_flux,mass_added_flux)                           \
     reduction(+:xmom_added_flux,ymom_added_flux,zmom_added_flux)	\
@@ -134,12 +134,11 @@ PeleC::construct_hydro_source(
         auto const& qauxar = qaux.array();
         auto const& srcqarr = src_q.array();
 
-        const PassMap* lpmap = d_pass_map;
         {
           BL_PROFILE("PeleC::ctoprim()");
           amrex::ParallelFor(
             qbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-              pc_ctoprim(i, j, k, s, qarr, qauxar, *lpmap);
+              pc_ctoprim(i, j, k, s, qarr, qauxar);
             });
         }
 
@@ -190,7 +189,7 @@ PeleC::construct_hydro_source(
           const auto& src_in = sources_for_hydro.array(mfi);
           amrex::ParallelFor(
             qbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-              pc_srctoprim(i, j, k, qarr, qauxar, src_in, srcqarr, *lpmap);
+              pc_srctoprim(i, j, k, qarr, qauxar, src_in, srcqarr);
             });
         }
 

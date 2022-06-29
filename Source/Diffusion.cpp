@@ -102,7 +102,7 @@ PeleC::getMOLSrcTerm(
     fr_as_fine = &getFluxReg(level);
   }
 
-#ifdef _OPENMP
+#ifdef AMREX_USE_OMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
   {
@@ -172,10 +172,9 @@ PeleC::getMOLSrcTerm(
       // required for D term
       {
         BL_PROFILE("PeleC::ctoprim()");
-        PassMap const* lpmap = d_pass_map;
         amrex::ParallelFor(
           gbox, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            pc_ctoprim(i, j, k, sar, qar, qauxar, *lpmap);
+            pc_ctoprim(i, j, k, sar, qar, qauxar);
           });
       }
       // TODO deal with NSCBC
@@ -306,8 +305,8 @@ PeleC::getMOLSrcTerm(
 
         int Nvals = sv_eb_bcval[local_i].numPts();
 
-        AMREX_ASSERT(Nvals == Ncut);
-        AMREX_ASSERT(nFlux == Ncut);
+        AMREX_ASSERT(static_cast<unsigned long>(Nvals) == Ncut);
+        AMREX_ASSERT(static_cast<unsigned long>(nFlux) == Ncut);
 
         if (eb_isothermal && (diffuse_temp || diffuse_enth)) {
           {
@@ -464,6 +463,7 @@ PeleC::getMOLSrcTerm(
                   flx[dir]);
               }
             }
+            amrex::Gpu::Device::streamSynchronize();
           }
 
           // Get "hybrid flux divergence" and redistribute

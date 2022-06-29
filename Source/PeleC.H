@@ -1,5 +1,5 @@
-#ifndef _PELEC_H_
-#define _PELEC_H_
+#ifndef PELEC_H
+#define PELEC_H
 
 #include <AMReX_BC_TYPES.H>
 #include <AMReX_AmrLevel.H>
@@ -12,7 +12,6 @@
 
 #ifdef AMREX_PARTICLES
 #include <AMReX_Particles.H>
-#include <SprayParticles.H>
 #endif
 
 #include "Filter.H"
@@ -34,9 +33,7 @@ enum StateType { State_Type = 0, Reactions_Type, Work_Estimate_Type };
 enum sources {
   ext_src = 0,
   forcing_src,
-#ifdef AMREX_PARTICLES
   spray_src,
-#endif
   diff_src,
   les_src,
 #ifdef PELEC_USE_MASA
@@ -58,6 +55,20 @@ grow_box_by_one(const amrex::Box& b)
   return amrex::grow(b, 1);
 }
 */
+
+// Forward declarations
+#ifdef PELEC_SPRAY
+class SprayParticleContainer;
+#endif
+
+AMREX_FORCE_INLINE static bool
+ebInDomain()
+{
+  amrex::ParmParse pp("eb2");
+  std::string geom_type("all_regular");
+  pp.query("geom_type", geom_type);
+  return (geom_type != "all_regular");
+}
 
 // AmrLevel-derived class for hyperbolic conservation equations for stellar
 // media
@@ -97,10 +108,7 @@ public:
   void setPlotVariables() override;
 
   // Write a plotfile to specified directory.
-  void writePlotFile(
-    const std::string& dir, std::ostream& os, amrex::VisMF::How how) override;
-  void writeSmallPlotFile(
-    const std::string& dir, std::ostream& os, amrex::VisMF::How how) override;
+  void writePlotFilePost(const std::string& dir, std::ostream& os) override;
   void writeJobInfo(const std::string& dir);
   static void writeBuildInfo(std::ostream& os);
 
@@ -117,7 +125,7 @@ public:
   // Initialize grid data at problem start-up.
   void initData() override;
 
-#ifdef AMREX_PARTICLES
+#ifdef PELEC_SPRAY
 
   // Read particle-related inputs
   static void readParticleParams();
@@ -156,33 +164,6 @@ public:
 
   // Time step control based on particles
   void particleEstTimeStep(amrex::Real& est_dt);
-
-  // Derived quantities associated with particles
-  std::unique_ptr<amrex::MultiFab>
-  particleDerive(const std::string& name, amrex::Real time, int ngrow);
-
-  // Default cfl of particles in Particle class
-  static amrex::Real particle_cfl;
-
-  // Should we write particles into plotfiles?
-  static int write_particle_plotfiles;
-
-  // Should we write particle ascii files?
-  static int write_spray_ascii_files;
-
-  void setSprayGridInfo(
-    const int amr_iteration,
-    const int amr_ncycle,
-    int& ghost_width,
-    int& where_width,
-    int& spray_n_grow,
-    int& tmp_src_width);
-
-  static int particle_mass_tran;
-  static int particle_heat_tran;
-  static int particle_mom_tran;
-  static amrex::Vector<std::string> sprayFuelNames;
-  static amrex::Real sprayRefT;
 #endif
 
   // Get problem metrics.
@@ -206,8 +187,6 @@ public:
   // Initialize EB geometry for finest_level and level grids for
   // other levels for the Amr class to do timed load balances.
   int WorkEstType() override { return Work_Estimate_Type; }
-
-  static bool DoMOLLoadBalance() { return do_mol_load_balance; }
 
   const amrex::MultiFab& volFrac() const { return vfrac; }
 
@@ -527,12 +506,10 @@ public:
   // static int NVAR;
   static int Density, Xmom, Ymom, Zmom, Eden, Eint, Temp;
 
-  static int FirstAdv, NumAdv;
+  static int FirstAdv;
   static int FirstSpec;
   static int FirstAux;
-
-  /// Index locations into particle state
-  static int pstateVel, pstateT, pstateDia, pstateRho, pstateY, pstateNum;
+  static int FirstLin;
 
   // This MultiFab is on the coarser level.  This is useful for the coarser
   // level to mask out the finer level.  We only build this when it is needed.
@@ -542,13 +519,6 @@ public:
   amrex::MultiFab& build_fine_mask();
 
   static bool eb_in_domain;
-  AMREX_FORCE_INLINE static bool ebInDomain()
-  {
-    amrex::ParmParse pp("eb2");
-    std::string geom_type("all_regular");
-    pp.query("geom_type", geom_type);
-    return (geom_type != "all_regular");
-  }
 
   amrex::EBFluxRegister flux_reg;
   amrex::EBFluxRegister& getFluxReg();
@@ -568,8 +538,6 @@ public:
   static ProbParmDevice* d_prob_parm_device;
   static ProbParmHost* prob_parm_host;
   static TaggingParm* tagging_parm;
-  static PassMap* h_pass_map;
-  static PassMap* d_pass_map;
   static pele::physics::transport::TransportParams<
     pele::physics::PhysicsType::transport_type>
     trans_parms;
@@ -695,8 +663,9 @@ protected:
   // There can be only one Diffusion object, it covers all levels:
   static class Diffusion* diffusion;
 
-#ifdef AMREX_PARTICLES
-  static int do_spray_particles;
+  // Do spray particles
+  static bool do_spray_particles;
+#ifdef PELEC_SPRAY
   static SprayParticleContainer* theSprayPC();
   static SprayParticleContainer* theVirtPC();
   static SprayParticleContainer* theGhostPC();
