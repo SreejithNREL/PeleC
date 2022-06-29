@@ -195,7 +195,7 @@ pc_bcfill_hyp(
           0.0, bndryBoxLO_ghost, UMX, AMREX_SPACEDIM);
 
         PeleC::turb_inflow.add_turb(
-          bndryBoxLO, data, 0, geom, time, dir, amrex::Orientation::low);
+          bndryBoxLO, data, UMX, geom, time, dir, amrex::Orientation::low);
       }
 
       auto bndryBoxHI = amrex::Box(amrex::adjCellHi(geom.Domain(), dir) & bx);
@@ -210,7 +210,7 @@ pc_bcfill_hyp(
           0.0, bndryBoxHI_ghost, UMX, AMREX_SPACEDIM);
 
         PeleC::turb_inflow.add_turb(
-          bndryBoxHI, data, 0, geom, time, dir, amrex::Orientation::high);
+          bndryBoxHI, data, UMX, geom, time, dir, amrex::Orientation::high);
       }
     }
   }
