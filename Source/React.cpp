@@ -185,10 +185,7 @@ PeleC::react_state(
         auto const& mask = dummyMask.array(mfi);
         auto const& fc = fctCount.array(mfi);
 
-        //Added by Sreejith starts here
-        //amrex::Real* lo_chem_mask=lo_chem_mask_coordinate.data();
-        //amrex::Real* hi_chem_mask=hi_chem_mask_coordinate.data();
-
+        //If chem mask is activated, identify and tag the corresponding box.
         if(use_chem_mask)
         {
         	amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -202,7 +199,6 @@ PeleC::react_state(
         	}
         	});
         }
-        //Added by Sreejith ends here
 
         amrex::ParallelFor(
           bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -271,6 +267,7 @@ PeleC::react_state(
               / dt;
 
             //Added by Sreejith, Hari
+            //Time integrate only when make is not -1
             if(use_chem_mask && mask(i,j,k)==-1)
             {
             	for(int nsp=0;nsp<NUM_SPECIES;nsp++)

@@ -96,9 +96,12 @@ int PeleC::num_state_type = 0;
 amrex::Real PeleC::typical_rhoY_val_min = 1.e-10;
 bool PeleC::use_typical_vals_chem = false;
 bool PeleC::use_typical_vals_chem_usr = false;
-bool PeleC::use_chem_mask=false;
-amrex::Vector<amrex::Real> PeleC::lo_chem_mask_coordinate;
-amrex::Vector<amrex::Real> PeleC::hi_chem_mask_coordinate;
+
+//Declaring variables for chemistry mask.
+bool PeleC::use_chem_mask=false;		//Flag to check if mask is activated.
+amrex::Vector<amrex::Real> PeleC::lo_chem_mask_coordinate;	//Box coordinate low
+amrex::Vector<amrex::Real> PeleC::hi_chem_mask_coordinate;	//Box coordinate high
+
 int PeleC::reset_typical_vals_int = 10;
 amrex::Vector<amrex::Real> PeleC::typical_values_chem_usr;
 
@@ -190,24 +193,18 @@ PeleC::read_params()
   pp.query("use_typ_vals_chem", use_typical_vals_chem);
   pp.query("use_typ_vals_chem_usr", use_typical_vals_chem_usr);
 
-  //Variables for imposing chemistry mask
-
   pp.query("chem_mask",use_chem_mask);
 
   #ifdef AMREX_USE_GPU
-  //Chemical mask implementation does not work with GPUs. Warn the user and kill the run
     amrex::Error("\nChemical mask implementationd does not work with GPUs. Please use only CPUs for runs with chemical mask.");
   #endif
 
+  //Reading chemistry mask box coordinates
   if(use_chem_mask)
   {
 	  pp.getarr("lo_chemmask",lo_chem_mask_coordinate);
 	  pp.getarr("hi_chemmask",hi_chem_mask_coordinate);
   }
-  //if(use_chem_mask && )
-  //{
-
-  //}
 
   if (use_typical_vals_chem_usr) {
     use_typical_vals_chem = true;
