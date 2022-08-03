@@ -9,10 +9,10 @@ struct ProbParmDevice
 {
   bool binfmt = false;
   bool restart = false;
-  
-  amrex::Real T_in  = 298.0;
+
+  amrex::Real T_in = 298.0;
   amrex::Real vn_in = 0.2;
-  amrex::Real pamb  = 1.0e+6; //1 bar
+  amrex::Real pamb = 1.0e+6; // 1 bar
 
   int direction = 0;
 
@@ -20,7 +20,6 @@ struct ProbParmDevice
 
   amrex::Real bc_params_init[6] = {0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
   amrex::Real bc_target_init[5] = {0.0, 0.0, 0.0, 0.0, 0.0};
-
 };
 
 struct ProbParmHost

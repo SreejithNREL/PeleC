@@ -49,44 +49,41 @@ pc_initdata(
   for (int n = 0; n < NUM_SPECIES; n++)
     massfrac[n] = 1.0;
 
-
-  amrex::Real mean          = 0.0;
-  amrex::Real sigma         = 0.01;
-  amrex::Real peak_pressure = p*0.2;
-  amrex::Real pi            = 3.14156;
+  amrex::Real mean = 0.0;
+  amrex::Real sigma = 0.01;
+  amrex::Real peak_pressure = p * 0.2;
+  amrex::Real pi = 3.14156;
   amrex::Real gaussian;
-  
-  // gaussian_function(mean,mean,sigma,gaussian);
-  amrex::Real peak_gaussian = 1/sigma/(2.*pi)*exp(-0.5*pow((mean - mean)/sigma, 2));
 
-  amrex::Real r = sqrt(pow((mean-x[0]),2)+pow((mean-x[1]),2)+pow((mean-x[2]),2));
+  // gaussian_function(mean,mean,sigma,gaussian);
+  amrex::Real peak_gaussian =
+    1 / sigma / (2. * pi) * exp(-0.5 * pow((mean - mean) / sigma, 2));
+
+  amrex::Real r =
+    sqrt(pow((mean - x[0]), 2) + pow((mean - x[1]), 2) + pow((mean - x[2]), 2));
 
   // gaussian_function(x,mean,sigma,gaussian);
-  gaussian =  1/sigma/(2.*pi)*exp(-0.5*pow((r - mean)/sigma, 2));
-  amrex::Real P_local = p + gaussian/peak_gaussian * peak_pressure;  
+  gaussian = 1 / sigma / (2. * pi) * exp(-0.5 * pow((r - mean) / sigma, 2));
+  amrex::Real P_local = p + gaussian / peak_gaussian * peak_pressure;
   // printf("Pressure %f \n", P_local);
-
 
   auto eos = pele::physics::PhysicsType::eos();
   eos.PYT2RE(P_local, massfrac, T, rho, e);
 
-
-  state(i, j, k, URHO)  = rho;
-  state(i, j, k, UMX)   = 0.0;
-  state(i, j, k, UMY)   = 0.0;
-  state(i, j, k, UMZ)   = 0.0;
+  state(i, j, k, URHO) = rho;
+  state(i, j, k, UMX) = 0.0;
+  state(i, j, k, UMY) = 0.0;
+  state(i, j, k, UMZ) = 0.0;
   state(i, j, k, UEINT) = rho * e;
   state(i, j, k, UEDEN) = rho * (e + ek);
   state(i, j, k, UTEMP) = T;
   for (int n = 0; n < NUM_SPECIES; n++) {
-    state(i, j, k,UFS + n) = rho * massfrac[n];
+    state(i, j, k, UFS + n) = rho * massfrac[n];
   }
 }
 
-
-void
-gaussian_function(amrex::Real x,amrex::Real mean,amrex::Real sigma, amrex::Real gaussian);
-
+void gaussian_function(
+  amrex::Real x, amrex::Real mean, amrex::Real sigma, amrex::Real gaussian);
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -105,10 +102,10 @@ bcnormal(
   amrex::Real bc_target[6] = PeleC::h_prob_parm_device->bc_target_init)
 {
   // if(idir == 0){
-    for (int n = 0; n < NVAR; n++){
-      s_ext[n] = prob_parm.air_state[n];
-      // printf("s_ext[%i] = %f\n", n, s_ext[n]);
-    }
+  for (int n = 0; n < NVAR; n++) {
+    s_ext[n] = prob_parm.air_state[n];
+    // printf("s_ext[%i] = %f\n", n, s_ext[n]);
+  }
 
   // }
 }
@@ -122,47 +119,45 @@ nscbc_targets(
   amrex::Real bc_params[6],
   amrex::Real bc_target[6])
 {
-    bc_type = 8; //outflow
+  bc_type = 8; // outflow
 
-    amrex::Real massfrac[NUM_SPECIES] = {0.0};
-    amrex::Real P, rho;
-    for (int n = 0; n < NUM_SPECIES; n++)
-      massfrac[n] = prob_parm.air_state[UFS + n];
+  amrex::Real massfrac[NUM_SPECIES] = {0.0};
+  amrex::Real P, rho;
+  for (int n = 0; n < NUM_SPECIES; n++)
+    massfrac[n] = prob_parm.air_state[UFS + n];
 
-    auto eos = pele::physics::PhysicsType::eos();
-    rho = prob_parm.air_state[URHO];
-    eos.RTY2P(rho, prob_parm.air_state[UTEMP], massfrac, P);
-    // printf("Target pressure: %f [bar]\n",P/1.e+6);
+  auto eos = pele::physics::PhysicsType::eos();
+  rho = prob_parm.air_state[URHO];
+  eos.RTY2P(rho, prob_parm.air_state[UTEMP], massfrac, P);
+  // printf("Target pressure: %f [bar]\n",P/1.e+6);
 
-    amrex::Real TARGET_VX = prob_parm.air_state[UMX]/rho;
-    amrex::Real TARGET_VY = prob_parm.air_state[UMY]/rho;
-    amrex::Real TARGET_VZ = prob_parm.air_state[UMZ]/rho;
-    amrex::Real TARGET_TEMPERATURE = prob_parm.air_state[UTEMP];
-    amrex::Real TARGET_PRESSURE = P;
+  amrex::Real TARGET_VX = prob_parm.air_state[UMX] / rho;
+  amrex::Real TARGET_VY = prob_parm.air_state[UMY] / rho;
+  amrex::Real TARGET_VZ = prob_parm.air_state[UMZ] / rho;
+  amrex::Real TARGET_TEMPERATURE = prob_parm.air_state[UTEMP];
+  amrex::Real TARGET_PRESSURE = P;
 
-    bc_target[0] = TARGET_VX;
-    bc_target[1] = TARGET_VY;
-    bc_target[2] = TARGET_VZ;
-    bc_target[3] = TARGET_TEMPERATURE;
-    bc_target[4] = TARGET_PRESSURE;
+  bc_target[0] = TARGET_VX;
+  bc_target[1] = TARGET_VY;
+  bc_target[2] = TARGET_VZ;
+  bc_target[3] = TARGET_TEMPERATURE;
+  bc_target[4] = TARGET_PRESSURE;
 
-    //parameters used when inflow is used
-    amrex::Real relax_U = 0.0;
-    amrex::Real relax_V = 0.0;
-    amrex::Real relax_W = 0.0;
-    amrex::Real relax_T = -0.2;
-    //parameters for outflow
-    amrex::Real beta = -0.6;
-    amrex::Real sigma = 0.8;
+  // parameters used when inflow is used
+  amrex::Real relax_U = 0.0;
+  amrex::Real relax_V = 0.0;
+  amrex::Real relax_W = 0.0;
+  amrex::Real relax_T = -0.2;
+  // parameters for outflow
+  amrex::Real beta = -0.6;
+  amrex::Real sigma = 0.8;
 
-
-    bc_params[0] = relax_U;
-    bc_params[1] = relax_V;
-    bc_params[2] = relax_W;
-    bc_params[3] = relax_T;
-    bc_params[4] = beta;
-    bc_params[5] = sigma;
-
+  bc_params[0] = relax_U;
+  bc_params[1] = relax_V;
+  bc_params[2] = relax_W;
+  bc_params[3] = relax_T;
+  bc_params[4] = beta;
+  bc_params[5] = sigma;
 }
 void pc_prob_close();
 

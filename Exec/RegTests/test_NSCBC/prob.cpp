@@ -10,7 +10,6 @@ init_bc()
   amrex::Real e;
   amrex::Real massfrac[NUM_SPECIES];
 
-
   for (int n = 0; n < NUM_SPECIES; n++)
     massfrac[n] = 1.0;
 
@@ -21,7 +20,7 @@ init_bc()
   auto eos = pele::physics::PhysicsType::eos();
   eos.PYT2RE(p, massfrac, T, rho, e);
 
-  vt = 0.0; //PeleC::h_prob_parm_device->vn_in;
+  vt = 0.0; // PeleC::h_prob_parm_device->vn_in;
   ek = 0.5 * (vt * vt);
 
   PeleC::h_prob_parm_device->air_state[URHO] = rho;
@@ -50,23 +49,23 @@ amrex_probinit(
   const amrex_real* problo,
   const amrex_real* probhi)
 {
-    // Parse params
-    amrex::ParmParse pp("prob");
-    pp.query("pamb"  , PeleC::h_prob_parm_device->pamb);
-    pp.query("T_in"  , PeleC::h_prob_parm_device->T_in);
-    pp.query("vn_in" , PeleC::h_prob_parm_device->vn_in);
-    pp.query("direction" , PeleC::h_prob_parm_device->direction);
+  // Parse params
+  amrex::ParmParse pp("prob");
+  pp.query("pamb", PeleC::h_prob_parm_device->pamb);
+  pp.query("T_in", PeleC::h_prob_parm_device->T_in);
+  pp.query("vn_in", PeleC::h_prob_parm_device->vn_in);
+  pp.query("direction", PeleC::h_prob_parm_device->direction);
 
   init_bc();
-
-  }
+}
 }
 
-
 void
-gaussian_function(amrex::Real x,amrex::Real mean,amrex::Real sigma, amrex::Real gaussian){
+gaussian_function(
+  amrex::Real x, amrex::Real mean, amrex::Real sigma, amrex::Real gaussian)
+{
   amrex::Real pi = 3.1415;
-  gaussian =  1/sigma/(2.*pi)*exp(-0.5*pow((x - mean)/sigma, 2));
+  gaussian = 1 / sigma / (2. * pi) * exp(-0.5 * pow((x - mean) / sigma, 2));
 }
 
 void
