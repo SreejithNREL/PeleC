@@ -1,6 +1,6 @@
 # AMReX
 DIM = 3
-COMP = intel
+COMP = gnu
 PRECISION = DOUBLE
 
 # Profiling
@@ -12,7 +12,7 @@ MEM_PROFILE = FALSE
 USE_GPROF = FALSE
 
 # Performance
-USE_MPI = FALSE
+USE_MPI = TRUE
 USE_OMP = FALSE
 USE_CUDA = FALSE
 USE_HIP = FALSE

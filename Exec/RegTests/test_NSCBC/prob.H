@@ -16,7 +16,7 @@
 #include "Tagging.H"
 #include "ProblemDerive.H"
 #include "prob_parm.H"
-#include "Forcing.H"
+//#include "Forcing.H"
 #include "Utilities.H"
 
 AMREX_GPU_DEVICE
@@ -33,7 +33,7 @@ pc_initdata(
 
   // Geometry
   const amrex::Real* prob_lo = geomdata.ProbLo();
-  // const amrex::Real* prob_hi = geomdata.ProbHi();
+  const amrex::Real* prob_hi = geomdata.ProbHi();
   const amrex::Real* dx = geomdata.CellSize();
   amrex::Real x[3] = {
     prob_lo[0] + static_cast<amrex::Real>(i + 0.5) * dx[0],
@@ -50,21 +50,15 @@ pc_initdata(
   for (int n = 0; n < NUM_SPECIES; n++)
     massfrac[n] = 1.0;
 
+  amrex::Real probL = prob_hi[0] - prob_lo[0];
+  amrex::Real R = 0.05*probL;
+  amrex::Real delta = 0.001;
 
-  amrex::Real mean          = 0.0;
-  amrex::Real sigma         = 0.01;
-  amrex::Real peak_pressure = p*0.2;
-  amrex::Real pi            = 3.14156;
-  amrex::Real gaussian;
-  
-  // gaussian_function(mean,mean,sigma,gaussian);
-  amrex::Real peak_gaussian = 1/sigma/(2.*pi)*exp(-0.5*pow((mean - mean)/sigma, 2));
+  amrex::Real r_sqr = pow((x[0]),2)+pow((x[1]),2)+pow((x[2]),2);
 
-  amrex::Real r = sqrt(pow((mean-x[0]),2)+pow((mean-x[1]),2)+pow((mean-x[2]),2));
-
-  // gaussian_function(x,mean,sigma,gaussian);
-  gaussian =  1/sigma/(2.*pi)*exp(-0.5*pow((r - mean)/sigma, 2));
-  amrex::Real P_local = p + gaussian/peak_gaussian * peak_pressure;  
+  // gaussian_function
+  amrex::Real gaussian =  delta*exp(-0.5*r_sqr/pow(R, 2));
+  amrex::Real P_local = p * (1 + gaussian);  
   // printf("Pressure %f \n", P_local);
 
 
