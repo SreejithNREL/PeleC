@@ -234,6 +234,11 @@ pc_diffusion_flux(
     tauz =
       coef[dComp_mu] * (2.0 * dwdz - 2.0 / 3.0 * divu) + coef[dComp_xi] * divu;
   }
+#ifdef PELEC_USE_FORCING
+  // Diffusion term for the vibrational energy
+  const amrex::Real devibdx = dxinv * (q(iv, QFA) - q(ivm, QFA));
+  amrex::Real diff_evib = coef[dComp_rhoD + N2_ID]*devibdx; // Diffusion coeff. from N2 
+#endif
   flx(iv, UMX) = -taux;
   flx(iv, UMY) = -tauy;
   flx(iv, UMZ) = -tauz;
@@ -244,7 +249,9 @@ pc_diffusion_flux(
     coef[dComp_lambda] * (dxinv * (q(iv, QTEMP) - q(ivm, QTEMP)));
 
   FluxTypes::SpeciesEnergyFluxType()(iv, ivm, dxinv, coef, q, flx);
-
+#ifdef PELEC_USE_FORCING
+  flx(iv, UFA) = -diff_evib;
+#endif
   // Scale by area
   AMREX_D_TERM(flx(iv, UMX) *= area(i, j, k);, flx(iv, UMY) *= area(i, j, k);
                , flx(iv, UMZ) *= area(i, j, k););
@@ -252,6 +259,9 @@ pc_diffusion_flux(
   for (int ns = 0; ns < NUM_SPECIES; ++ns) {
     flx(iv, UFS + ns) *= area(i, j, k);
   }
+#ifdef PELEC_USE_FORCING
+  flx(iv, UFA) *= area(i, j, k);
+#endif
 }
 
 // This function computes the flux divergence.

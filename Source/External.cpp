@@ -86,8 +86,9 @@ PeleC::fill_ext_source(
         Farr(i, j, k, n) = 0.0;
 
 #ifdef PELEC_USE_FORCING
-      amrex::Real ign_energy;
+      amrex::Real E_tot_source;
       amrex::GpuArray<amrex::Real, NUM_SPECIES> omega = {{0.0}};
+      amrex::Real E_vib_source;
       LTP_ignition_source(time,
                       dt,
                       i,
@@ -96,18 +97,18 @@ PeleC::fill_ext_source(
                       geomdata,
             		      *lprobparm,
                       Sn,
-                      ign_energy,
-                      omega
-                      );
+                      E_tot_source,
+                      E_vib_source,
+                      omega);
 
-
-      Farr(i, j, k, UEINT) = ign_energy;
-      Farr(i, j, k, UEDEN) = ign_energy;
+      // Farr(i, j, k, UEINT) = E_tot_source;
+      Farr(i, j, k, UEDEN) = E_tot_source;
+      Farr(i, j, k, UFA)   = E_tot_source;
   
       for (int n = 0; n < NUM_SPECIES; n++)
         Farr(i, j, k, UFS+n) = omega[n];
 
-      // Farr(i, j, k, UEDEN) = Sn(i, j, k, URHO)*(ign_energy + 0.5 * (vx*vx + vy*vy + vz*vz));
+      // Farr(i, j, k, UEDEN) = Sn(i, j, k, URHO)*(E_tot_source + 0.5 * (vx*vx + vy*vy + vz*vz));
 #endif
       });
   }
