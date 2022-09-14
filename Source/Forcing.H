@@ -71,7 +71,7 @@ amrex::Real tau_vt(amrex::Real massfrac[NUM_SPECIES],
     amrex::Real P;
 
     eos.RTY2P(rho, Temp, massfrac, P);
-    // P = P * 0.1; //Convert Pele pressure to Pa
+    P = P * 0.1; //Convert Pele pressure to Pa
 
     eos.Y2X(massfrac,molefrac);
     amrex::Real mw[NUM_SPECIES];
@@ -122,7 +122,7 @@ amrex::Real vyaas_energy_dist(
   amrex::Real y,
   amrex::Real z){
 
-  const amrex::Real kernel_offset   = 1.92-0.15; //[cm] 0.15 comes from electrode gap divided by 2
+  const amrex::Real kernel_offset   = 1.92e-2-0.15e-2; //[cm] 0.15 comes from electrode gap divided by 2
   y = y - kernel_offset; //setting y to be zero at the cathode tip [m]
 
   amrex::Real za      = 3.0e-3; //anode tip [m]
@@ -182,6 +182,9 @@ amrex::Real vyaas_energy_dist(
 
     return B*(f+g*(ha+hc));
   }
+  else{
+    return 0.0;
+  }
 }
 
 AMREX_GPU_DEVICE
@@ -230,8 +233,10 @@ void LTP_ignition_source(
   amrex::Real tau_p   = prob_parm.dwell;             //inter-pulse width [s]
   amrex::Real tau_hat = ign_duration/tau_p;   //pulse width
   amrex::Real N       = prob_parm.npulses;    //Number of pulses
-  // amrex::Real Ep       = 1.5e+14*1.e-06*1.e+7;  //base power [J/m3/s] -> [erg/cm3/s]
-  amrex::Real Ep      = prob_parm.base_power*1.e+1/ign_duration;  //base power [J/m3] -> [erg/cm3/s]
+
+  amrex::Real Ep      = prob_parm.base_power*1.e+1;  //base power [J/m3] -> [erg/cm3]
+  // amrex::Real Ep      = prob_parm.base_power*1.e+1/ign_duration;  //base power [J/m3] -> [erg/cm3/s]
+
 
   //variables related to Castela's model
   amrex::Real g_chem = 0.35; //fraction of energy going to ultrafast dissociation
@@ -261,8 +266,8 @@ void LTP_ignition_source(
     // y = y - t*Vel[1];
     // z = z - t*Vel[2];
 
-    // amrex::Real energy_dist = vyaas_energy_dist(B,x,y,z);
-    amrex::Real energy_dist = castela_energy_dist(x,y,z);
+    amrex::Real energy_dist = vyaas_energy_dist(B,x,y,z);
+    // amrex::Real energy_dist = castela_energy_dist(x,y,z);
     
     // Finished computing spatial distribution. 
     // Lets now move to the division of deposited energy into 
@@ -315,6 +320,7 @@ void LTP_ignition_source(
 
     E_tot_source = (E_heat+E_chem+Rvt)*energy_dist;
     E_vib_source = (E_vib-Rvt)        *energy_dist;
+
   }
   else{ // Set source terms to zero if it is not time to ignition
     E_tot_source = 0.0;
