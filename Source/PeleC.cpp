@@ -655,7 +655,12 @@ PeleC::initData()
       });
     amrex::Gpu::synchronize();
   } else {
-    initLevelDataFromPlt(level, init_pltfile, S_new);
+    if (init_pltfile_from_lm){
+      initLevelDataFromPlt(level, init_pltfile, S_new, true);
+    }else{
+      initLevelDataFromPlt(level, init_pltfile, S_new);
+    }
+    //initLevelDataFromLMPlt(level, init_pltfile, S_new);
   }
 
   enforce_consistent_e(S_new);

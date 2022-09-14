@@ -37,6 +37,9 @@ do_avg_down                 bool           true
 # Initialize from a plot file
 init_pltfile              string          ""
 
+# Initialize from a PeleLM plot file
+init_pltfile_from_lm      int             0
+
 # Acceptable tolerance for species mass fraction when initializing from a plot file
 init_pltfile_massfrac_tol   Real         1e-8
 

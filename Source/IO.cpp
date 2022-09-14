@@ -761,16 +761,26 @@ PeleC::writeBuildInfo(std::ostream& os)
 
 void
 PeleC::initLevelDataFromPlt(
-  const int lev, const std::string& dataPltFile, amrex::MultiFab& S_new)
+  const int lev, const std::string& dataPltFile, amrex::MultiFab& S_new,
+  bool lm_to_c)
 {
-  amrex::Print() << "Using data (rho, u, T, Y) from pltfile " << dataPltFile
-                 << std::endl;
-  pele::physics::pltfilemanager::PltFileManager pltData(dataPltFile);
+  if (lm_to_c){
+    amrex::Print() << "Using data (rho, u, T, Y) from pltfile - LM to C mode " << dataPltFile
+                   << std::endl;
+  }else{
+    amrex::Print() << "Using data (rho, u, T, Y) from pltfile " << dataPltFile
+                   << std::endl;
+  }
+
+  pele::physics::pltfilemanager::PltFileManager pltData(dataPltFile, lm_to_c);
   const auto plt_vars = pltData.getVariableList();
 
   // Read rho, u, temperature (required)
+  std::string temp_name = "Temp";
+  if (lm_to_c) temp_name = "temp";
   std::map<std::string, int> vars{
-    {"density", -1}, {"x_velocity", -1}, {"Temp", -1}};
+    {"density", -1}, {"x_velocity", -1}, {temp_name, -1}};
+
   for (auto& var : vars) {
     var.second = find_position(plt_vars, var.first);
     if (var.second == -1) {
@@ -780,7 +790,7 @@ PeleC::initLevelDataFromPlt(
   pltData.fillPatchFromPlt(lev, geom, vars["density"], URHO, 1, S_new);
   pltData.fillPatchFromPlt(
     lev, geom, vars["x_velocity"], UMX, AMREX_SPACEDIM, S_new);
-  pltData.fillPatchFromPlt(lev, geom, vars["Temp"], UTEMP, 1, S_new);
+  pltData.fillPatchFromPlt(lev, geom, vars[temp_name], UTEMP, 1, S_new);
 
   // Copy species from the plot file
   for (int n = 0; n < spec_names.size(); n++) {
@@ -799,10 +809,18 @@ PeleC::initLevelDataFromPlt(
       auto sarr = sarrs[nbx];
       amrex::Real sumY = 0.0;
 
+      if (lm_to_c){
+        sarr(i, j, k, URHO) *= 1e-3;
+        for (int n = 0; n < AMREX_SPACEDIM; n++) {
+          sarr(i, j, k, UMX+n) *= 1e2;
+        }
+      }
+
       for (int n = 0; n < NUM_SPECIES; n++) {
         // if the species is not too far out of bounds, clip it
         const auto mf = sarr(i, j, k, UFS + n);
         if ((mf < 0.0) || (1.0 < mf)) {
+	  //amrex::Print() << "tol " << tol << "mf " << mf << '\n';
           if (((-tol < mf) && (mf < 0.0)) || ((1.0 < mf) && (mf < 1 + tol))) {
             sarr(i, j, k, UFS + n) =
               amrex::min<amrex::Real>(1.0, amrex::max<amrex::Real>(0.0, mf));
