@@ -66,12 +66,12 @@ amrex::Real tau_vt(amrex::Real massfrac[NUM_SPECIES],
 
     auto eos = pele::physics::PhysicsType::eos();
 
-    amrex::Real c = 101325.0; // [dyne/cm2] as pressure in PeleC.   Castela et al. 2016 use c=1 [atm]
+    amrex::Real c = 1013250.0; // [dyne/cm2] as pressure in PeleC.   Castela et al. 2016 use c=1 [atm]
     amrex::Real molefrac[NUM_SPECIES] = {0.0};
     amrex::Real P;
 
     eos.RTY2P(rho, Temp, massfrac, P);
-    P = P * 0.1; //Convert Pele pressure to Pa
+    // P = P * 0.1; //Convert Pele pressure to Pa
 
     eos.Y2X(massfrac,molefrac);
     amrex::Real mw[NUM_SPECIES];
