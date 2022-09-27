@@ -111,7 +111,7 @@ amrex::Real R_vt(amrex::Real rho,
                  amrex::Real massfrac[NUM_SPECIES],
                  amrex::Real Temp){
 
- return massfrac[N2_ID]*rho*(e_vib - evib_equil(Temp))/tau_vt(massfrac,Temp,rho);
+ return rho*(e_vib - evib_equil(Temp))/tau_vt(massfrac,Temp,rho);
 }
 
 AMREX_GPU_DEVICE
