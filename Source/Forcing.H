@@ -111,7 +111,7 @@ amrex::Real R_vt(amrex::Real rho,
                  amrex::Real massfrac[NUM_SPECIES],
                  amrex::Real Temp){
 
- return rho*(e_vib - evib_equil(Temp))/tau_vt(massfrac,Temp,rho);
+ return massfrac[N2_ID]*rho*(e_vib - evib_equil(Temp))/tau_vt(massfrac,Temp,rho);
 }
 
 AMREX_GPU_DEVICE
@@ -228,34 +228,53 @@ void LTP_ignition_source(
   amrex::Real z = 0.0;
 #endif
 
-
+  // ------ Local variables -----
   amrex::Real ign_duration = prob_parm.pulse_duration;         //duration of the ignition pulse [s]
   amrex::Real tau_p   = prob_parm.dwell;             //inter-pulse width [s]
   amrex::Real tau_hat = ign_duration/tau_p;   //pulse width
   amrex::Real N       = prob_parm.npulses;    //Number of pulses
 
-  amrex::Real Ep      = prob_parm.base_power*1.e+1;  //base power [J/m3] -> [erg/cm3]
-  // amrex::Real Ep      = prob_parm.base_power*1.e+1/ign_duration;  //base power [J/m3] -> [erg/cm3/s]
-
+  // amrex::Real Ep      = prob_parm.base_power*1.e+1;  //base power [J/m3] -> [erg/cm3]
+  amrex::Real Ep      = prob_parm.base_power*1.e+1/ign_duration;  //base power [J/m3] -> [erg/cm3/s]
 
   //variables related to Castela's model
   amrex::Real g_chem = 0.35; //fraction of energy going to ultrafast dissociation
   amrex::Real g_heat = 0.2; //fraction of energy going to ultrafast heating
   amrex::Real alpha_castela = g_chem+g_heat; // fraction of energy going to ultrafast dissociation and heating
 
+  amrex::Real massfrac[NUM_SPECIES]; 
+  amrex::Real rho = state(i, j, k, URHO);
+  amrex::Real e_vib_local = state(i, j, k, UFA);
+  amrex::Real Temp        = state(i, j, k, UTEMP);
+
+  //local massfraction
+  for (int n = 0; n < NUM_SPECIES; n++)
+    massfrac[n] = state(i, j, k, UFS+n)/rho;
+
+  //relaxation rate of the vibrational energy
+  amrex::Real Rvt;
+  Rvt = R_vt(rho,e_vib_local,massfrac,Temp);
+  
+  //reaction rates vector is initialized with zero. It is changed to a computed value during ignition (B > 0)
+  for (int n = 0; n < NUM_SPECIES; n++)
+    omega[n] = 0.0;
+  
+  // adding source term for the relaxation of the vibrational state
+  E_tot_source =  Rvt;
+  E_vib_source = -Rvt;
+
+
+  // ---- Control of energy deposition in time -----
   amrex::Real t = 0.0;
   if(time >= prob_parm.ltp_start_time){
     t = time - prob_parm.ltp_start_time; //time used to compute parameter B
   }
-  // t = time;
   
   //parameter B controls ignition over time
   amrex::Real B = (1.+ floor(t/tau_p - 1) - floor(t/tau_p - tau_hat))*heavyside_device(t-floor(t/N/tau_p));
-
-  // if(time > ign_duration and B > 0.0) t = t - tau_p; //set t=0 at the start of the second pulse to compute convection distance
-  if(B > 0.0 and x > -5e-02 and x < 5e-02){
-
-    amrex::Real rho = state(i, j, k, URHO);
+  // -----------------------------------------------
+  
+  if(B > 0.0){
 
     //accounting for local cross-flow velocity
     amrex::Real Vel[3] = {0.0};
@@ -266,25 +285,19 @@ void LTP_ignition_source(
     // y = y - t*Vel[1];
     // z = z - t*Vel[2];
 
-    amrex::Real energy_dist = vyaas_energy_dist(B,x,y,z);
-    // amrex::Real energy_dist = castela_energy_dist(x,y,z);
+    // amrex::Real energy_dist = vyaas_energy_dist(B,x,y,z);
+    amrex::Real energy_dist = castela_energy_dist(x,y,z);
     
     // Finished computing spatial distribution. 
     // Lets now move to the division of deposited energy into 
     // ultrafast heating and increase in vibrational energy and species dissociation
       
-
-    amrex::Real massfrac[NUM_SPECIES]; 
     amrex::Real Y_O2_U; //Oxygen massfraction in the oxidizer
     amrex::Real e[NUM_SPECIES]; //internal energy
     amrex::Real mw[NUM_SPECIES]; //molecular weights
     
-    //local massfraction
-    for (int n = 0; n < NUM_SPECIES; n++)
-      massfrac[n] = state(i, j, k, UFS+n)/rho;
-
     auto eos = pele::physics::PhysicsType::eos();
-    eos.T2Ei(state(i, j, k, UTEMP), e);
+    eos.T2Ei(Temp, e);
     eos.molecular_weight(mw);
 
     //Oxygen massfraction in the oxidizer
@@ -294,22 +307,11 @@ void LTP_ignition_source(
     omega[O_ID]  = g_chem * massfrac[O2_ID]/Y_O2_U * Ep/e[O_ID];
     omega[O2_ID] = - mw[O_ID]/mw[O2_ID] * omega[O_ID];
 
-    // amrex::Print() << "Inside model: omega[O_ID]  " << omega[O_ID] << std::endl;
-    // amrex::Print() << "Inside model: omega[O2_ID] " << omega[O2_ID] << std::endl;
-
-
     //discharge energy consumed in the dissociation process
     amrex::Real E_chem = Ep * g_chem * massfrac[O2_ID]/Y_O2_U*(1 - mw[O_ID]/mw[O2_ID] * e[O2_ID]/e[O_ID]);
 
     //discharge energy used to ultrafast gas heating
     amrex::Real E_heat = alpha_castela*Ep - E_chem;
-
-    amrex::Real e_vib_local = state(i, j, k, UFA);
-    amrex::Real Temp        = state(i, j, k, UTEMP);
-
-    //relaxation rate of the vibrational energy
-    amrex::Real Rvt;
-    Rvt = R_vt(rho,e_vib_local,massfrac,Temp);
 
     //discharge energy used to ultrafast increase in vibrational energy
     amrex::Real E_vib =  Ep*(1-g_heat-g_chem);
@@ -318,15 +320,9 @@ void LTP_ignition_source(
     for (int n = 0; n < NUM_SPECIES; n++)
       omega[n] *= energy_dist;
 
-    E_tot_source = (E_heat+E_chem+Rvt)*energy_dist;
-    E_vib_source = (E_vib-Rvt)        *energy_dist;
+    E_tot_source += (E_heat+E_chem)*energy_dist;
+    E_vib_source += (E_vib)        *energy_dist;
 
-  }
-  else{ // Set source terms to zero if it is not time to ignition
-    E_tot_source = 0.0;
-    E_vib_source = 0.0;
-    for (int n = 0; n < NUM_SPECIES; n++)
-      omega[n] = 0.0;
   }
 }
 
