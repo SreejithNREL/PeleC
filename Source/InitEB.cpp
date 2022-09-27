@@ -80,7 +80,7 @@ PeleC::initialize_eb2_structs()
     amrex::Abort();
   }
 
-#ifdef _OPENMP
+#ifdef AMREX_USE_OMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
   for (amrex::MFIter mfi(vfrac, false); mfi.isValid(); ++mfi) {
@@ -191,7 +191,7 @@ PeleC::initialize_eb2_structs()
       }
     }
 
-#ifdef _OPENMP
+#ifdef AMREX_USE_OMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for (amrex::MFIter mfi(vfrac, false); mfi.isValid(); ++mfi) {
@@ -380,6 +380,7 @@ PeleC::set_body_state(amrex::MultiFab& S)
       pc_set_body_state(
         i, j, k, n, flagarrs[nbx], captured_body_state, sarrs[nbx]);
     });
+  amrex::Gpu::synchronize();
 }
 
 void
@@ -403,6 +404,7 @@ PeleC::zero_in_body(amrex::MultiFab& S) const
     [=] AMREX_GPU_DEVICE(int nbx, int i, int j, int k, int n) noexcept {
       pc_set_body_state(i, j, k, n, flagarrs[nbx], zeros, sarrs[nbx]);
     });
+  amrex::Gpu::synchronize();
 }
 
 // Sets up implicit function using EB2 infrastructure
@@ -459,7 +461,7 @@ PeleC::initialize_signed_distance()
                         static_cast<amrex::Real>(parent->refRatio(ilev - 1)[0]),
                         static_cast<amrex::Real>(ilev));
     }
-    extentFactor *= std::sqrt(2.0); // Account for diagonals
+    extentFactor *= tagging_parm->detag_eb_factor;
 
     amrex::MultiFab signDist(
       convert(grids, amrex::IntVect::TheUnitVector()), dmap, 1, 1,
@@ -482,6 +484,7 @@ PeleC::initialize_signed_distance()
             sd_nd(i, j + 1, k + 1) + sd_nd(i + 1, j + 1, k + 1));
         sd_cc(i, j, k) *= fac;
       });
+    amrex::Gpu::synchronize();
 
     signed_dist_0.FillBoundary(parent->Geom(0).periodicity());
     extend_signed_distance(&signed_dist_0, extentFactor);
@@ -579,13 +582,14 @@ PeleC::extend_signed_distance(
         sd_cc(i, j, k) = nGrowFac * dx[0] * extendFactor;
       }
     });
+  amrex::Gpu::synchronize();
 
   // Iteratively compute the distance function in boxes, propagating accross
   // boxes using ghost cells If needed, increase the number of loop to extend
   // the reach of the distance function
   const int nMaxLoop = 4;
   for (int dloop = 1; dloop <= nMaxLoop; dloop++) {
-#ifdef _OPENMP
+#ifdef AMREX_USE_OMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
     for (amrex::MFIter mfi(*signDist, amrex::TilingIfNotGPU()); mfi.isValid();
@@ -643,9 +647,7 @@ PeleC::InitialRedistribution(
 
   // Don't redistribute if there is no EB or if the redistribution type is
   // anything other than StateRedist
-  if (
-    (!eb_in_domain) ||
-    ((eb_in_domain) && (redistribution_type != "StateRedist"))) {
+  if ((!eb_in_domain) || (redistribution_type != "StateRedist")) {
     return;
   }
 

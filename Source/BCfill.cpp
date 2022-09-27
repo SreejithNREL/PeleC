@@ -67,7 +67,7 @@ struct PCHypFillExtDir
       for (int n = 0; n < NVAR; n++) {
         s_int[n] = dest(loc, n);
       }
-      if (m_do_turb_inflow && (iv[idir] == domlo[idir] + 1)) {
+      if (m_do_turb_inflow && (iv[idir] == domlo[idir] - 1)) {
         for (int n = 0; n < NVAR; n++) {
           s_ext[n] = dest(iv, n);
         }
@@ -101,7 +101,7 @@ struct PCHypFillExtDir
       for (int n = 0; n < NVAR; n++) {
         s_int[n] = dest(loc, n);
       }
-      if (m_do_turb_inflow && (iv[idir] == domlo[idir] + 1)) {
+      if (m_do_turb_inflow && (iv[idir] == domhi[idir] + 1)) {
         for (int n = 0; n < NVAR; n++) {
           s_ext[n] = dest(iv, n);
         }
@@ -119,7 +119,7 @@ struct PCHypFillExtDir
       for (int n = 0; n < NVAR; n++) {
         s_int[n] = dest(loc, n);
       }
-      if (m_do_turb_inflow && (iv[idir] == domlo[idir] - 1)) {
+      if (m_do_turb_inflow && (iv[idir] == domhi[idir] + 1)) {
         for (int n = 0; n < NVAR; n++) {
           s_ext[n] = dest(iv, n);
         }
@@ -140,7 +140,7 @@ struct PCHypFillExtDir
       for (int n = 0; n < NVAR; n++) {
         s_int[n] = dest(loc, n);
       }
-      if (m_do_turb_inflow && (iv[idir] == domlo[idir] + 1)) {
+      if (m_do_turb_inflow && (iv[idir] == domhi[idir] + 1)) {
         for (int n = 0; n < NVAR; n++) {
           s_ext[n] = dest(iv, n);
         }
@@ -201,11 +201,11 @@ pc_bcfill_hyp(
         const amrex::Box modDom = amrex::grow(geom.Domain(), growVect);
         const auto bndryBoxLO_ghost =
           amrex::Box(amrex::adjCellLo(modDom, dir) & bx);
-        data.setVal<amrex::RunOn::Host>(
+        data.setVal<amrex::RunOn::Device>(
           0.0, bndryBoxLO_ghost, UMX, AMREX_SPACEDIM);
 
         PeleC::turb_inflow.add_turb(
-          bndryBoxLO, data, 0, geom, time, dir, amrex::Orientation::low);
+          bndryBoxLO, data, UMX, geom, time, dir, amrex::Orientation::low);
       }
 
       auto bndryBoxHI = amrex::Box(amrex::adjCellHi(geom.Domain(), dir) & bx);
@@ -216,11 +216,11 @@ pc_bcfill_hyp(
         const amrex::Box modDom = amrex::grow(geom.Domain(), growVect);
         const auto bndryBoxHI_ghost =
           amrex::Box(amrex::adjCellHi(modDom, dir) & bx);
-        data.setVal<amrex::RunOn::Host>(
+        data.setVal<amrex::RunOn::Device>(
           0.0, bndryBoxHI_ghost, UMX, AMREX_SPACEDIM);
 
         PeleC::turb_inflow.add_turb(
-          bndryBoxHI, data, 0, geom, time, dir, amrex::Orientation::high);
+          bndryBoxHI, data, UMX, geom, time, dir, amrex::Orientation::high);
       }
     }
   }

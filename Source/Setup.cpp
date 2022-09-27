@@ -18,8 +18,6 @@ ProbParmDevice* PeleC::d_prob_parm_device = nullptr;
 ProbParmDevice* PeleC::h_prob_parm_device = nullptr;
 ProbParmHost* PeleC::prob_parm_host = nullptr;
 TaggingParm* PeleC::tagging_parm = nullptr;
-PassMap* PeleC::d_pass_map = nullptr;
-PassMap* PeleC::h_pass_map = nullptr;
 
 // Components are:
 // Interior, Inflow, Outflow,  Symmetry,     SlipWall,     NoSlipWall, UserBC
@@ -139,22 +137,14 @@ PeleC::variableSetUp()
   prob_parm_host = new ProbParmHost{};
   h_prob_parm_device = new ProbParmDevice{};
   tagging_parm = new TaggingParm{};
-  h_pass_map = new PassMap{};
   d_prob_parm_device = static_cast<ProbParmDevice*>(
     amrex::The_Arena()->alloc(sizeof(ProbParmDevice)));
-  d_pass_map =
-    static_cast<PassMap*>(amrex::The_Arena()->alloc(sizeof(PassMap)));
   trans_parms.allocate();
   turb_inflow.init(amrex::DefaultGeometry());
 
   // Get options, set phys_bc
   eb_in_domain = ebInDomain();
   read_params();
-
-  init_pass_map(h_pass_map);
-
-  amrex::Gpu::copy(
-    amrex::Gpu::hostToDevice, h_pass_map, h_pass_map + 1, d_pass_map);
 
 #ifdef PELEC_USE_MASA
   if (do_mms) {
@@ -173,15 +163,9 @@ PeleC::variableSetUp()
   Eint = cnt++;
   Temp = cnt++;
 
-#ifdef NUM_ADV
-  NumAdv = NUM_ADV;
-#else
-  NumAdv = 0;
-#endif
-
-  if (NumAdv > 0) {
+  if (NUM_ADV > 0) {
     FirstAdv = cnt;
-    cnt += NumAdv;
+    cnt += NUM_ADV;
   }
 
   // int dm = AMREX_SPACEDIM;
@@ -196,17 +180,13 @@ PeleC::variableSetUp()
     cnt += NUM_AUX;
   }
 
-  // NVAR = cnt;
+  if (NUM_LIN > 0) {
+    FirstLin = cnt;
+    cnt += NUM_LIN;
+  }
 
-#ifdef AMREX_PARTICLES
-  // Set index locations for particle state vector
-  pstateVel = 0;
-  pstateT = pstateVel + AMREX_SPACEDIM;
-  pstateDia = pstateT + 1;
-  pstateRho = pstateDia + 1;
-  pstateY = pstateRho + 1;
-  pstateNum = pstateY + SPRAY_FUEL_NUM;
-#endif
+  // NUM_LIN variables are will be added by the specific models
+  // NVAR = cnt;
 
   // const amrex::Real run_strt = amrex::ParallelDescriptor::second() ;
   // Real run_stop = ParallelDescriptor::second() - run_strt;
@@ -235,10 +215,6 @@ PeleC::variableSetUp()
   //}
 
   // int coord_type = amrex::DefaultGeometry().Coord();
-
-  amrex::Vector<amrex::Real> center(AMREX_SPACEDIM, 0.0);
-  amrex::ParmParse ppc("pelec");
-  ppc.queryarr("center", center, 0, AMREX_SPACEDIM);
 
   amrex::MFInterpolater* interp;
 
@@ -317,9 +293,9 @@ PeleC::variableSetUp()
   bcs[cnt] = bc;
   name[cnt] = "Temp";
 
-  for (int i = 0; i < NumAdv; ++i) {
+  for (int i = 0; i < NUM_ADV; ++i) {
     char buf[64];
-    sprintf(buf, "adv_%d", i);
+    sprintf(buf, "rho_adv_%d", i);
     cnt++;
     set_scalar_bc(bc, phys_bc);
     bcs[cnt] = bc;
@@ -399,18 +375,22 @@ PeleC::variableSetUp()
 
   desc_lst.setComponent(Reactions_Type, 0, react_name, react_bcs, bndryfunc2);
 
-  if (do_react_load_balance || do_mol_load_balance) {
-    desc_lst.addDescriptor(
-      Work_Estimate_Type, amrex::IndexType::TheCellType(),
-      amrex::StateDescriptor::Point, 0, 1, &amrex::pc_interp);
-    // Because we use piecewise constant interpolation, we do not use bc and
-    // BndryFunc.
-    desc_lst.setComponent(
-      Work_Estimate_Type, 0, "WorkEstimate", bc,
-      amrex::StateDescriptor::BndryFunc(pc_nullfill));
-  }
+  const bool workest_store_in_checkpoint = false;
+  const bool workest_data_extrap = false;
+  desc_lst.addDescriptor(
+    Work_Estimate_Type, amrex::IndexType::TheCellType(),
+    amrex::StateDescriptor::Point, 0, 1, &amrex::pc_interp, workest_data_extrap,
+    workest_store_in_checkpoint);
+  // Because we use piecewise constant interpolation, we do not use bc and
+  // BndryFunc.
+  desc_lst.setComponent(
+    Work_Estimate_Type, 0, "WorkEstimate", bc,
+    amrex::StateDescriptor::BndryFunc(pc_nullfill));
 
   num_state_type = desc_lst.size();
+
+  // Get the level at which EB is generated
+  eb_max_lvl_gen = getEBMaxLevel();
 
   // DEFINE DERIVED QUANTITIES
 
@@ -491,6 +471,17 @@ PeleC::variableSetUp()
     var_names_massfrac, pc_derspec, amrex::DeriveRec::TheSameBox);
   derive_lst.addComponent("massfrac", desc_lst, State_Type, Density, NVAR);
 
+  // adv from rho_adv
+  amrex::Vector<std::string> var_names_adv(NUM_ADV);
+  for (int i = 0; i < NUM_ADV; i++) {
+    var_names_adv[i] = "adv_" + std::to_string(i);
+  }
+
+  derive_lst.add(
+    "adv", amrex::IndexType::TheCellType(), NUM_ADV, var_names_adv, pc_deradv,
+    amrex::DeriveRec::TheSameBox);
+  derive_lst.addComponent("adv", desc_lst, State_Type, Density, NVAR);
+
   // Species mole fractions
   amrex::Vector<std::string> var_names_molefrac(NUM_SPECIES);
   for (int i = 0; i < NUM_SPECIES; i++) {
@@ -532,10 +523,6 @@ PeleC::variableSetUp()
     "magmom", amrex::IndexType::TheCellType(), 1, pc_dermagmom,
     amrex::DeriveRec::TheSameBox);
   derive_lst.addComponent("magmom", desc_lst, State_Type, Density, NVAR);
-
-  derive_lst.add(
-    "vfrac", amrex::IndexType::TheCellType(), 1, pc_dermagvel,
-    amrex::DeriveRec::TheSameBox);
 
 #ifdef AMREX_PARTICLES
   // We want a derived type that corresponds to the number of particles
@@ -665,9 +652,7 @@ PeleC::variableCleanUp()
   delete prob_parm_host;
   delete tagging_parm;
   delete h_prob_parm_device;
-  delete h_pass_map;
   amrex::The_Arena()->free(d_prob_parm_device);
-  amrex::The_Arena()->free(d_pass_map);
   trans_parms.deallocate();
 }
 
@@ -688,11 +673,9 @@ PeleC::set_active_sources()
     src_list.push_back(forcing_src);
   }
 
-#ifdef AMREX_PARTICLES
   if (do_spray_particles) {
     src_list.push_back(spray_src);
   }
-#endif
 
   // optional LES source
   if (do_les) {

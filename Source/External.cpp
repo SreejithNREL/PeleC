@@ -120,6 +120,7 @@ PeleC::fill_ext_source(
         Farrs[nbx](i, j, k, n) = 0.0;
       }
     });
+  amrex::Gpu::synchronize();
 }
 
 

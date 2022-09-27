@@ -19,8 +19,6 @@ pelec.hi_bc       =  "FOExtrap"  "NoSlipWall"  "Interior"
 # Problem setup
 pelec.eb_boundary_T = 300.
 pelec.eb_isothermal = 1
-eb_verbosity = 1
-eos_gamma = 1.4
 
 # WHICH PHYSICS
 pelec.do_hydro = 1
@@ -49,7 +47,7 @@ amr.max_level       = 2       # maximum level number allowed
 amr.ref_ratio       = 2 2 2 2 # refinement ratio
 amr.regrid_int      = 2 2 2 2 # how often to regrid
 amr.blocking_factor = 8       # block factor in grid generation
-amr.max_grid_size   = 16
+amr.max_grid_size   = 32
 
 # CHECKPOINT FILES
 amr.checkpoint_files_output = 0
@@ -71,9 +69,9 @@ prob.angle = 30.0
 
 # TAGGING
 tagging.denerr = 3
-tagging.dengrad = 0.01
+tagging.denratio = 1.1
 tagging.max_denerr_lev = 3
-tagging.max_dengrad_lev = 3
+tagging.max_denratio_lev = 3
 
 tagging.presserr = 3
 tagging.pressgrad = 0.01

@@ -5,14 +5,14 @@ PRECISION = DOUBLE
 
 # Profiling
 PROFILE = FALSE
-TINY_PROFILE = FALSE
+TINY_PROFILE = TRUE
 COMM_PROFILE = FALSE
 TRACE_PROFILE = FALSE
 MEM_PROFILE = FALSE
 USE_GPROF = FALSE
 
 # Performance
-USE_MPI = FALSE
+USE_MPI = TRUE
 USE_OMP = FALSE
 USE_CUDA = FALSE
 USE_HIP = FALSE
@@ -24,12 +24,23 @@ THREAD_SANITIZER = FALSE
 
 # PeleC
 Eos_Model := Fuego
-Chemistry_Model := dodmethair_4sp
+Chemistry_Model := dodecane_lu_qss
 Transport_Model := Simple
 USE_MASA = FALSE
+
+# Libraries
+USE_HDF5  = FALSE
+USE_HDF5_ZFP = FALSE
+USE_ASCENT = FALSE
+USE_CONDUIT = FALSE
+HDF5_HOME = $(HDF5_ROOT)
+H5Z_HOME  = $(H5Z_ROOT)
+ZFP_HOME  = $(ZFP_ROOT)
+ASCENT_DIR = $(ASCENT_ROOT)
+CONDUIT_DIR = $(CONDUIT_ROOT)
 
 # GNU Make
 Bpack := ./Make.package
 Blocs := .
-PELEC_HOME := ../../../../PeleC
+PELEC_HOME := ../../..
 include $(PELEC_HOME)/Exec/Make.PeleC

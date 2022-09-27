@@ -1,5 +1,5 @@
-#ifndef _LES_H_
-#define _LES_H_
+#ifndef LES_H
+#define LES_H
 
 #include "PeleC.H"
 #include "Utilities.H"
@@ -9,7 +9,7 @@
 #include "PelePhysics.H"
 #include "Filter.H"
 
-#ifdef _OPENMP
+#ifdef AMREX_USE_OMP
 #include <omp.h>
 #endif
 
@@ -211,11 +211,11 @@ pc_smagorinsky_sfs_term(
       alpha, flux_T);
   }
   const amrex::Real sigmadx =
-    Cs2 * alphaij[0] - third * CI * alpha * static_cast<double>(dir == 0);
+    Cs2 * alphaij[0] - third * CI * alpha * static_cast<amrex::Real>(dir == 0);
   const amrex::Real sigmady =
-    Cs2 * alphaij[1] - third * CI * alpha * static_cast<double>(dir == 1);
+    Cs2 * alphaij[1] - third * CI * alpha * static_cast<amrex::Real>(dir == 1);
   const amrex::Real sigmadz =
-    Cs2 * alphaij[2] - third * CI * alpha * static_cast<double>(dir == 2);
+    Cs2 * alphaij[2] - third * CI * alpha * static_cast<amrex::Real>(dir == 2);
   flx(iv, UMX) = -sigmadx;
   flx(iv, UMY) = -sigmady;
   flx(iv, UMZ) = -sigmadz;

@@ -526,7 +526,7 @@ pc_eb_div(
         const amrex::Real kappa_inv =
           1.0 / amrex::max<amrex::Real>(vf(iv), 1.0e-12);
         amrex::Real tmp;
-#ifdef _OPENMP
+#ifdef AMREX_USE_OMP
 #pragma omp atomic read
 #endif
         tmp = ebflux[n * Ncut + L];
@@ -668,7 +668,9 @@ pc_apply_eb_boundry_visc_flux_stencil(
       }
 
       const amrex::Real tauDotN[AMREX_SPACEDIM] = {AMREX_D_DECL(
-        ((4.0 / 3.0) * coeff(iv, dComp_mu) + coeff(iv, dComp_xi)) * dUtdn[0],
+        (static_cast<amrex::Real>(4.0 / 3.0) * coeff(iv, dComp_mu) +
+         coeff(iv, dComp_xi)) *
+          dUtdn[0],
         coeff(iv, dComp_mu) * dUtdn[1], coeff(iv, dComp_mu) * dUtdn[2])};
 
       for (int idir = 0; idir < AMREX_SPACEDIM; idir++) {
@@ -733,13 +735,13 @@ pc_eb_clean_massfrac(
   amrex::Array4<amrex::Real> const& div)
 {
   // Compute the new state and the mask
-  amrex::IArrayBox mask(bx);
-  amrex::Elixir mask_eli = mask.elixir();
+  amrex::IArrayBox mask(bx, 1, amrex::The_Async_Arena());
   mask.setVal<amrex::RunOn::Device>(0, mask.box());
   const auto& mask_arr = mask.array();
   amrex::ParallelFor(
     bx, state.nComp(),
-    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+    [=] AMREX_GPU_DEVICE(
+      int i, int j, AMREX_D_PICK(int /*k*/, int /*k*/, int k), int n) noexcept {
       const amrex::IntVect iv{AMREX_D_DECL(i, j, k)};
       if (is_cut_neighborhood(iv, flags)) {
         scratch(iv, n) = state(iv, n) + dt * div(iv, n);
@@ -753,7 +755,8 @@ pc_eb_clean_massfrac(
   // Compute the updated div
   amrex::ParallelFor(
     bx, state.nComp(),
-    [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+    [=] AMREX_GPU_DEVICE(
+      int i, int j, AMREX_D_PICK(int /*k*/, int /*k*/, int k), int n) noexcept {
       const amrex::IntVect iv{AMREX_D_DECL(i, j, k)};
       if (mask_arr(iv) != 0) {
         div(iv, n) = (scratch(iv, n) - state(iv, n)) / dt;

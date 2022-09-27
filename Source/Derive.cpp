@@ -224,6 +224,27 @@ pc_derspec(
 }
 
 void
+pc_deradv(
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int /*dcomp*/,
+  int /*ncomp*/,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& /*geomdata*/,
+  amrex::Real /*time*/,
+  const int* /*bcrec*/,
+  const int /*level*/)
+{
+  auto const dat = datfab.const_array();
+  auto adv = derfab.array();
+
+  amrex::ParallelFor(
+    bx, NUM_ADV, [=] AMREX_GPU_DEVICE(int i, int j, int k, int n) noexcept {
+      adv(i, j, k, n) = dat(i, j, k, UFA + n) / dat(i, j, k, URHO);
+    });
+}
+
+void
 pc_dermagvort(
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
@@ -240,8 +261,7 @@ pc_dermagvort(
 
   const amrex::Box& gbx = amrex::grow(bx, 1);
 
-  amrex::FArrayBox local(gbx, 3);
-  amrex::Elixir local_eli = local.elixir();
+  amrex::FArrayBox local(gbx, 3, amrex::The_Async_Arena());
   auto larr = local.array();
 
   const auto& flag_fab = amrex::getEBCellFlagFab(datfab);
@@ -362,8 +382,7 @@ pc_derenstrophy(
 
   const amrex::Box& gbx = amrex::grow(bx, 1);
 
-  amrex::FArrayBox local(gbx, 3);
-  amrex::Elixir local_eli = local.elixir();
+  amrex::FArrayBox local(gbx, 3, amrex::The_Async_Arena());
   auto larr = local.array();
 
   const auto& flag_fab = amrex::getEBCellFlagFab(datfab);

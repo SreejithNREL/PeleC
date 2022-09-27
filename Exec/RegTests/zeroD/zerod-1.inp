@@ -9,7 +9,6 @@ geometry.prob_lo     =   0.0  0.0  0.0
 geometry.prob_hi     =   1.0  1.0  1.0
 amr.n_cell           =   8    8    8
 
-#pelec.Riemann    = 0     # 0: HLL,  1: JBB,  2: HLLC
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
@@ -73,5 +72,4 @@ tagging.ftracerr = 150e-6
 amrex.signal_handling=0
 #amrex.throw_handling=0
 
-eb2.geom_type = "all_regular"
 ebd.boundary_grad_stencil_type = 0

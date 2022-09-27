@@ -17,6 +17,7 @@ PeleC::construct_hydro_source(
     }
     hydro_source.setVal(0);
   } else {
+    BL_PROFILE("PeleC::advance_hydro_pc_umdrv()");
 
     if ((verbose != 0) && amrex::ParallelDescriptor::IOProcessor()) {
       amrex::Print() << "... Computing hydro advance" << std::endl;
@@ -76,9 +77,7 @@ PeleC::construct_hydro_source(
     amrex::Real yang_lost = 0.;
     amrex::Real zang_lost = 0.;
 
-    BL_PROFILE_VAR("PeleC::advance_hydro_pc_umdrv()", PC_UMDRV);
-
-#ifdef _OPENMP
+#ifdef AMREX_USE_OMP
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())               \
     reduction(+:E_added_flux,mass_added_flux)                           \
     reduction(+:xmom_added_flux,ymom_added_flux,zmom_added_flux)	\
@@ -112,36 +111,30 @@ PeleC::construct_hydro_source(
         // const int* hi = bx.hiVect();
 
         amrex::GpuArray<amrex::FArrayBox, AMREX_SPACEDIM> flux;
-        amrex::Elixir flux_eli[AMREX_SPACEDIM];
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
           const amrex::Box& efbx = surroundingNodes(fbx, dir);
-          flux[dir].resize(efbx, NVAR);
-          flux_eli[dir] = flux[dir].elixir();
+          flux[dir].resize(efbx, NVAR, amrex::The_Async_Arena());
         }
 
         auto const& s = S.array(mfi);
         auto const& hyd_src = hydro_source.array(mfi);
 
         // Resize Temporary Fabs
-        amrex::FArrayBox q(qbx, QVAR);
-        amrex::FArrayBox qaux(qbx, NQAUX);
-        amrex::FArrayBox src_q(qbx, QVAR);
-        // Use Elixir Construct to steal the Fabs metadata
-        amrex::Elixir qeli = q.elixir();
-        amrex::Elixir qauxeli = qaux.elixir();
-        amrex::Elixir src_qeli = src_q.elixir();
+        amrex::FArrayBox q(qbx, QVAR, amrex::The_Async_Arena());
+        amrex::FArrayBox qaux(qbx, NQAUX, amrex::The_Async_Arena());
+        amrex::FArrayBox src_q(qbx, QVAR, amrex::The_Async_Arena());
         // Get Arrays to pass to the gpu.
         auto const& qarr = q.array();
         auto const& qauxar = qaux.array();
         auto const& srcqarr = src_q.array();
 
-        BL_PROFILE_VAR("PeleC::ctoprim()", ctop);
-        const PassMap* lpmap = d_pass_map;
-        amrex::ParallelFor(
-          qbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            pc_ctoprim(i, j, k, s, qarr, qauxar, *lpmap);
-          });
-        BL_PROFILE_VAR_STOP(ctop);
+        {
+          BL_PROFILE("PeleC::ctoprim()");
+          amrex::ParallelFor(
+            qbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+              pc_ctoprim(i, j, k, s, qarr, qauxar);
+            });
+        }
 
         // TODO GPUize NCSCBC
         // Imposing Ghost-Cells Navier-Stokes Characteristic BCs if "UserBC" are
@@ -161,7 +154,7 @@ PeleC::construct_hydro_source(
                 for(int d=0; d<AMREX_SPACEDIM; ++d) {
                   if (dir!=d) TestBox.grow(d,1);
                 }
-                bcMask[dir].resize(TestBox,1);
+                bcMask[dir].resize(TestBox,1, amrex::The_Async_Arena());
                 bcMask[dir].setVal(0);
               }
 
@@ -185,26 +178,22 @@ PeleC::construct_hydro_source(
                              &time, dx, &dt);
               }
         */
-        BL_PROFILE_VAR("PeleC::srctoprim()", srctop);
-        const auto& src_in = sources_for_hydro.array(mfi);
-        amrex::ParallelFor(
-          qbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-            pc_srctoprim(i, j, k, qarr, qauxar, src_in, srcqarr, *lpmap);
-          });
-        BL_PROFILE_VAR_STOP(srctop);
-
-        amrex::FArrayBox pradial(amrex::Box::TheUnitBox(), 1);
-        if (!amrex::DefaultGeometry().IsCartesian()) {
-          pradial.resize(amrex::surroundingNodes(bx, 0), 1);
+        {
+          BL_PROFILE("PeleC::srctoprim()");
+          const auto& src_in = sources_for_hydro.array(mfi);
+          amrex::ParallelFor(
+            qbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+              pc_srctoprim(i, j, k, qarr, qauxar, src_in, srcqarr);
+            });
         }
-        amrex::Elixir pradial_eli = pradial.elixir();
 
-#ifdef AMREX_USE_GPU
-        auto device = amrex::RunOn::Gpu;
-#else
-        auto device = amrex::RunOn::Cpu;
-#endif
-        BL_PROFILE_VAR("PeleC::umdrv()", purm);
+        amrex::FArrayBox pradial(
+          amrex::Box::TheUnitBox(), 1, amrex::The_Async_Arena());
+        if (!amrex::DefaultGeometry().IsCartesian()) {
+          pradial.resize(
+            amrex::surroundingNodes(bx, 0), 1, amrex::The_Async_Arena());
+        }
+
         const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>
           flx_arr{
             {AMREX_D_DECL(flux[0].array(), flux[1].array(), flux[2].array())}};
@@ -212,22 +201,24 @@ PeleC::construct_hydro_source(
           const amrex::Array4<const amrex::Real>, AMREX_SPACEDIM>
           a{{AMREX_D_DECL(
             area[0].array(mfi), area[1].array(mfi), area[2].array(mfi))}};
-        pc_umdrv(
-          is_finest_level, time, fbx, domain_lo, domain_hi, phys_bc.lo(),
-          phys_bc.hi(), s, hyd_src, qarr, qauxar, srcqarr, dx, dt, ppm_type,
-          use_flattening, use_hybrid_weno, weno_scheme, difmag, flx_arr, a,
-          volume.array(mfi), cflLoc);
-        BL_PROFILE_VAR_STOP(purm);
+        {
+          BL_PROFILE("PeleC::umdrv()");
+          pc_umdrv(
+            is_finest_level, time, fbx, domain_lo, domain_hi, phys_bc.lo(),
+            phys_bc.hi(), s, hyd_src, qarr, qauxar, srcqarr, dx, dt, ppm_type,
+            use_flattening, use_hybrid_weno, weno_scheme, difmag, flx_arr, a,
+            volume.array(mfi), cflLoc);
+        }
 
-        BL_PROFILE_VAR("courno + flux reg", crno);
         courno = amrex::max<amrex::Real>(courno, cflLoc);
 
         // Filter hydro source and fluxes here
         if (use_explicit_filter) {
+          BL_PROFILE("PeleC::apply_filter()");
           for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
             const amrex::Box& bxtmp = amrex::surroundingNodes(bx, dir);
-            amrex::FArrayBox filtered_flux(bxtmp, NVAR);
-            amrex::Elixir filtered_flux_eli = filtered_flux.elixir();
+            amrex::FArrayBox filtered_flux(
+              bxtmp, NVAR, amrex::The_Async_Arena());
             les_filter.apply_filter(
               bxtmp, flux[dir], filtered_flux, Density, NVAR);
 
@@ -236,8 +227,8 @@ PeleC::construct_hydro_source(
               bxtmp, flux[dir].nComp(), filtered_flux.array(), flx_arr[dir]);
           }
 
-          amrex::FArrayBox filtered_source_out(bx, NVAR);
-          amrex::Elixir filtered_source_out_eli = filtered_source_out.elixir();
+          amrex::FArrayBox filtered_source_out(
+            bx, NVAR, amrex::The_Async_Arena());
           les_filter.apply_filter(
             bx, hydro_source[mfi], filtered_source_out, Density, NVAR);
 
@@ -247,33 +238,29 @@ PeleC::construct_hydro_source(
         }
 
         if (do_reflux && sub_iteration == sub_ncycle - 1) {
+          BL_PROFILE("PeleC::reflux()");
           if (level < finest_level) {
             getFluxReg(level + 1).CrseAdd(
               mfi, {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}}, dxDp,
-              dt, device);
+              dt, amrex::RunOn::Device);
 
             if (!amrex::DefaultGeometry().IsCartesian()) {
               amrex::Abort("Flux registers not r-z compatible yet");
-              // getPresReg(level+1).CrseAdd(mfi,pradial, dx,dt);
             }
           }
 
           if (level > 0) {
             getFluxReg(level).FineAdd(
               mfi, {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}}, dxDp,
-              dt, device);
+              dt, amrex::RunOn::Device);
 
             if (!amrex::DefaultGeometry().IsCartesian()) {
               amrex::Abort("Flux registers not r-z compatible yet");
-              // getPresReg(level).FineAdd(mfi,pradial, dx,dt);
             }
           }
         }
-        BL_PROFILE_VAR_STOP(crno);
       }
     }
-
-    BL_PROFILE_VAR_STOP(PC_UMDRV);
 
     if (track_grid_losses) {
       material_lost_through_boundary_temp[0] += mass_lost;
@@ -357,44 +344,38 @@ pc_umdrv(
   // Set Up for Hydro Flux Calculations
   auto const& bxg2 = grow(bx, 2);
   amrex::FArrayBox qec[AMREX_SPACEDIM];
-  amrex::Elixir qec_eli[AMREX_SPACEDIM];
   for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
     const amrex::Box eboxes = amrex::surroundingNodes(bxg2, dir);
-    qec[dir].resize(eboxes, NGDNV);
-    qec_eli[dir] = qec[dir].elixir();
+    qec[dir].resize(eboxes, NGDNV, amrex::The_Async_Arena());
   }
   amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM> qec_arr{
     {AMREX_D_DECL(qec[0].array(), qec[1].array(), qec[2].array())}};
 
   // Temporary FArrayBoxes
-  amrex::FArrayBox divu(bxg2, 1);
-  amrex::FArrayBox pdivu(bx, 1);
-  amrex::Elixir divueli = divu.elixir();
-  amrex::Elixir pdiveli = pdivu.elixir();
+  amrex::FArrayBox divu(bxg2, 1, amrex::The_Async_Arena());
+  amrex::FArrayBox pdivu(bx, 1, amrex::The_Async_Arena());
   auto const& divuarr = divu.array();
   auto const& pdivuarr = pdivu.array();
 
-  BL_PROFILE_VAR("PeleC::umeth()", umeth);
+  {
+    BL_PROFILE("PeleC::umeth()");
 #if AMREX_SPACEDIM == 1
-  amrex::Abort("PLM isn't implemented in 1D.");
-  // pc_umeth_1D(
-  //  bx, bclo, bchi, domlo, domhi, q, qaux, src_q, // bcMask,
-  //  flx[0], qec_arr[0], a[0], pdivuarr, vol, dx, dt);
+    amrex::Abort("PLM isn't implemented in 1D.");
+    // pc_umeth_1D(
+    //  bx, bclo, bchi, domlo, domhi, q, qaux, src_q, // bcMask,
+    //  flx[0], qec_arr[0], a[0], pdivuarr, vol, dx, dt);
 #elif AMREX_SPACEDIM == 2
-  pc_umeth_2D(
-    bx, bclo, bchi, domlo, domhi, q, qaux, src_q, // bcMask,
-    flx[0], flx[1], qec_arr[0], qec_arr[1], a[0], a[1], pdivuarr, vol, dx, dt,
-    ppm_type, use_flattening, use_hybrid_weno, weno_scheme);
+    pc_umeth_2D(
+      bx, bclo, bchi, domlo, domhi, q, qaux, src_q, // bcMask,
+      flx[0], flx[1], qec_arr[0], qec_arr[1], a[0], a[1], pdivuarr, vol, dx, dt,
+      ppm_type, use_flattening, use_hybrid_weno, weno_scheme);
 #elif AMREX_SPACEDIM == 3
-  pc_umeth_3D(
-    bx, bclo, bchi, domlo, domhi, q, qaux, src_q, // bcMask,
-    flx[0], flx[1], flx[2], qec_arr[0], qec_arr[1], qec_arr[2], a[0], a[1],
-    a[2], pdivuarr, vol, dx, dt, ppm_type, use_flattening, use_hybrid_weno,
-    weno_scheme);
+    pc_umeth_3D(
+      bx, bclo, bchi, domlo, domhi, q, qaux, src_q, // bcMask,
+      flx[0], flx[1], flx[2], qec_arr[0], qec_arr[1], qec_arr[2], a[0], a[1],
+      a[2], pdivuarr, vol, dx, dt, ppm_type, use_flattening, use_hybrid_weno,
+      weno_scheme);
 #endif
-  BL_PROFILE_VAR_STOP(umeth);
-  for (auto& dir : qec_eli) {
-    dir.clear();
   }
 
   // divu
@@ -422,12 +403,13 @@ pc_consup(
   amrex::Real const* del,
   amrex::Real const difmag)
 {
+  BL_PROFILE("PeleC::consup()");
   // Flux alterations
   for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
     amrex::Box const& fbx = surroundingNodes(bx, dir);
     const amrex::Real dx = del[dir];
     amrex::ParallelFor(fbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-      pc_artif_visc(i, j, k, flx[dir], divu, u, dx, difmag, dir);
+      pc_artif_visc(AMREX_D_DECL(i, j, k), flx[dir], divu, u, dx, difmag, dir);
       // Normalize Species Flux
       pc_norm_spec_flx(i, j, k, flx[dir]);
       // Make flux extensive

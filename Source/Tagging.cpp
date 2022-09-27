@@ -12,6 +12,8 @@ PeleC::read_tagging_params()
   pp.query("max_denerr_lev", tagging_parm->max_denerr_lev);
   pp.query("dengrad", tagging_parm->dengrad);
   pp.query("max_dengrad_lev", tagging_parm->max_dengrad_lev);
+  pp.query("denratio", tagging_parm->denratio);
+  pp.query("max_denratio_lev", tagging_parm->max_denratio_lev);
 
   pp.query("presserr", tagging_parm->presserr);
   pp.query("max_presserr_lev", tagging_parm->max_presserr_lev);
@@ -28,6 +30,8 @@ PeleC::read_tagging_params()
 
   pp.query("temperr", tagging_parm->temperr);
   pp.query("max_temperr_lev", tagging_parm->max_temperr_lev);
+  pp.query("lotemperr", tagging_parm->lotemperr);
+  pp.query("max_lotemperr_lev", tagging_parm->max_lotemperr_lev);
   pp.query("tempgrad", tagging_parm->tempgrad);
   pp.query("max_tempgrad_lev", tagging_parm->max_tempgrad_lev);
 
@@ -59,6 +63,8 @@ PeleC::read_tagging_params()
 
   pp.query("eb_refine_type", tagging_parm->eb_refine_type);
   pp.query("max_eb_refine_lev", tagging_parm->max_eb_refine_lev);
+  pp.query("eb_detag_factor", tagging_parm->detag_eb_factor);
+  tagging_parm->detag_eb_factor *= std::sqrt(2.0);
   if (
     (tagging_parm->eb_refine_type != "static") &&
     (tagging_parm->eb_refine_type != "adaptive")) {

@@ -13,6 +13,7 @@
 #endif
 
 #include "PeleC.H"
+#include "PeleCAmr.H"
 
 std::string inputs_name;
 
@@ -21,12 +22,19 @@ initialize_EB2(const amrex::Geometry& geom, int required_level, int max_level);
 
 amrex::LevelBld* getLevelBld();
 
+void
+override_default_parameters()
+{
+  amrex::ParmParse pp("eb2");
+  if (not pp.contains("geom_type")) {
+    std::string geom_type("all_regular");
+    pp.add("geom_type", geom_type);
+  }
+}
+
 int
 main(int argc, char* argv[])
 {
-  // Use this to trap NaNs in C++
-  // feenableexcept(FE_DIVBYZERO | FE_INVALID | FE_OVERFLOW | FE_UNDERFLOW);
-
   if (argc <= 1) {
     amrex::Abort("Error: no inputs file provided on command line.");
   }
@@ -42,7 +50,8 @@ main(int argc, char* argv[])
   }
 
   // Make sure to catch new failures.
-  amrex::Initialize(argc, argv);
+  amrex::Initialize(
+    argc, argv, true, MPI_COMM_WORLD, override_default_parameters);
 // Defined and initialized when in gnumake, but not defined in cmake and
 // initialization done manually
 #ifndef AMREX_USE_SUNDIALS
@@ -110,17 +119,27 @@ main(int argc, char* argv[])
   }
 
   // Initialize random seed after we're running in parallel.
-  auto* amrptr = new amrex::Amr(getLevelBld());
+  auto* amrptr = new PeleCAmr(getLevelBld());
 
   amrex::AmrLevel::SetEBSupportLevel(
     amrex::EBSupport::full); // need both area and volume fractions
   amrex::AmrLevel::SetEBMaxGrowCells(
     5, 5,
     5); // 5 focdr ebcellflags, 4 for vfrac, 2 is not used for EBSupport::volume
+
   initialize_EB2(
-    amrptr->Geom(amrptr->maxLevel()), amrptr->maxLevel(), amrptr->maxLevel());
+    amrptr->Geom(PeleC::getEBMaxLevel()), PeleC::getEBMaxLevel(),
+    amrptr->maxLevel());
+
+  // Add finer level, might be inconsistent with the coarser level created
+  // above.
+  amrex::EB2::addFineLevels(amrptr->maxLevel() - PeleC::getEBMaxLevel());
 
   amrptr->init(strt_time, stop_time);
+
+#ifdef AMREX_USE_ASCENT
+  amrptr->doInSituViz(amrptr->levelSteps(0));
+#endif
 
   // If we set the regrid_on_restart flag and if we are *not* going to take
   // a time step then we want to go ahead and regrid here.
@@ -138,6 +157,9 @@ main(int argc, char* argv[])
          (amrptr->cumTime() < stop_time || stop_time < 0.0)) {
     // Do a timestep
     amrptr->coarseTimeStep(stop_time);
+#ifdef AMREX_USE_ASCENT
+    amrptr->doInSituViz(amrptr->levelSteps(0));
+#endif
   }
 
   // Write final checkpoint
