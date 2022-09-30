@@ -103,7 +103,7 @@ PeleC::fill_ext_source(
 
       // Farr(i, j, k, UEINT) = E_tot_source;
       Farr(i, j, k, UEDEN) = E_tot_source;
-      Farr(i, j, k, UFA)   = E_tot_source;
+      Farr(i, j, k, UFA)   = E_vib_source;
   
       for (int n = 0; n < NUM_SPECIES; n++)
         Farr(i, j, k, UFS+n) = omega[n];
