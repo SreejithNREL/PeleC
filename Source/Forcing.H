@@ -299,7 +299,8 @@ void LTP_ignition_source(
     amrex::Real mw[NUM_SPECIES]; //molecular weights
     
     auto eos = pele::physics::PhysicsType::eos();
-    eos.T2Ei(Temp, e);
+    amrex:: Temp_ref = 298.; //Reference temperature
+    eos.T2Ei(Temp_ref, e); // Get formation enthalpy
     eos.molecular_weight(mw);
 
     //Oxygen massfraction in the oxidizer
