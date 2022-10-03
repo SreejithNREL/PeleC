@@ -308,7 +308,7 @@ void LTP_ignition_source(
     omega[O2_ID] = - mw[O_ID]/mw[O2_ID] * omega[O_ID];
 
     //discharge energy consumed in the dissociation process
-    amrex::Real E_chem = Ep * g_chem * massfrac[O2_ID]/Y_O2_U*(1 - mw[O_ID]/mw[O2_ID] * e[O2_ID]/e[O_ID]);
+    amrex::Real E_chem = Ep * g_chem * massfrac[O2_ID]/Y_O2_U*(1 - e[O2_ID]/e[O_ID]);
 
     //discharge energy used to ultrafast gas heating
     amrex::Real E_heat = alpha_castela*Ep - E_chem;
