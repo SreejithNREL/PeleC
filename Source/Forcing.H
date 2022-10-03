@@ -193,12 +193,14 @@ amrex::Real castela_energy_dist(amrex::Real x,
                                 amrex::Real y,
                                 amrex::Real z){
   // amrex::Real r = 225.e-6; //ignition kernel radius in meters
-  amrex::Real a = 1.63242383e-04;
-  amrex::Real b = 10.;
+  // amrex::Real a = 1.63242383e-04;
+  // amrex::Real b = 10.;
+  amrex::Real a = 690e-10;
+  amrex::Real b = 2.5;
 
   amrex::Real r = sqrt(pow((0.0-x),2)+pow((0.0-y),2)+pow((0.0-z),2)); //radial distance from the ignition center
 
-  return 1.0-pow(erf(r/a),b);
+  return 1.0-pow(erf(pow(r,2)/a),b);
 }
 
 AMREX_GPU_DEVICE
