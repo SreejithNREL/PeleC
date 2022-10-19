@@ -62,7 +62,6 @@ struct ProbParmDevice
   amrex::Real Lzturb = 0.0;
 
   amrex::GpuArray<bool,2*AMREX_SPACEDIM> turb_ok = {{false}};
-  TurbParm tp;
   int  meanFlowDir = 1;
   //==================================
 };

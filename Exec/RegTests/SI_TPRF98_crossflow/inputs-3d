@@ -1,19 +1,19 @@
 # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-stop_time = 1.0e-03
-max_step = 100
+stop_time = 15.0e-06
+max_step = 10000
 
 # PROBLEM SIZE & GEOMETRY
 geometry.is_periodic = 0 0 0
 geometry.coord_sys   = 0  # 0 => cart, 1 => RZ  2=>spherical
-geometry.prob_lo     =   -0.4       1.02     -0.8
-geometry.prob_hi     =    1.2       2.62      0.8
-amr.n_cell           =    32       32       32
+geometry.prob_lo     = -0.4 1.5219 -0.8
+geometry.prob_hi     =  1.2 2.3219  0.8
+amr.n_cell           =  512 256 512
 
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
 # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
 # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
-pelec.lo_bc       =  "UserBC"    "SlipWall" "FOExtrap"
-pelec.hi_bc       =  "FOExtrap"  "SlipWall" "FOExtrap"
+pelec.lo_bc       =  "UserBC"    "FOExtrap" "FOExtrap"
+pelec.hi_bc       =  "FOExtrap"  "FOExtrap" "FOExtrap"
 
 # TIME STEP CONTROL
 pelec.cfl         = 0.3       # cfl number for hyperbolic system
@@ -36,13 +36,26 @@ prob.vn_in          = 1000.0      # [cm/s]
 # pele.pltfile_for_init = plt21288
 
 #Turbulent inflow parameters
-prob.turb_file = Turb_upsl_9_ltdf_20_stoich_etrf_10egr_big_domain
-prob.turb_scale_loc = 0.01
-prob.turb_scale_vel = 100.0
-prob.turb_center = 1.82 0.0
-prob.turb_conv_vel = 1000.
-prob.turb_nplane = 20  #n points in time direction to read each time
+turbinflows = lowX1 lowX2
+turbinflow.lowX1.turb_file = Turb_tprf_egr10_Ka3
+turbinflow.lowX1.dir = 0
+turbinflow.lowX1.side = low
+turbinflow.lowX1.turb_scale_loc = 0.01
+turbinflow.lowX1.turb_scale_vel = 100.0
+turbinflow.lowX1.turb_center = 1.9219 -0.399
+turbinflow.lowX1.turb_conv_vel = 1000.
+turbinflow.lowX1.turb_nplane = 20
+turbinflow.lowX1.time_offset = 3.2e-3
 
+turbinflow.lowX2.turb_file = Turb_tprf_egr10_Ka3
+turbinflow.lowX2.dir = 0
+turbinflow.lowX2.side = low
+turbinflow.lowX2.turb_scale_loc = 0.01
+turbinflow.lowX2.turb_scale_vel = 100.0
+turbinflow.lowX2.turb_center = 1.9219 0.399
+turbinflow.lowX2.turb_conv_vel = 1000.
+turbinflow.lowX2.turb_nplane = 20
+turbinflow.lowX2.time_offset = 3.2e-3
 
 # DIAGNOSTICS & VERBOSITY
 pelec.sum_interval = 1       # coarse time steps between computing mass on domain
@@ -56,27 +69,27 @@ amr.grid_log       = grdlog  # name of grid logging file
 # amrex.fpe_trap_zero=1
 
 # REFINEMENT / REGRIDDING 
-amr.max_level       = 0          # maximum level number allowed
+amr.max_level       = 2          # maximum level number allowed
 amr.ref_ratio       = 2 2 2 2    # refinement ratio
-amr.regrid_int      = 50        # how often to regrid
+amr.regrid_int      = 10         # how often to regrid
 amr.n_error_buf     = 2          # number of buffer cells in error est
 amr.grid_eff        = 0.7        # what constitutes an efficient grid
 amr.blocking_factor = 8          # block factor in grid generation
-amr.max_grid_size   = 32          # maximum box size
+amr.max_grid_size   = 16         # maximum box size
 amr.loadbalance_with_workestimates = 1
-# amr.restart         = chk00000   #specify the restart file
+amr.restart         = chk03000   #specify the restart file
 
 
 # CHECKPOINT FILES
 amr.checkpoint_files_output = 1
 amr.check_file              = chk    # root name of checkpoint file
-amr.check_int               = 500   # number of timesteps between checkpoints
+amr.check_int               = 50   # number of timesteps between checkpoints
 
 # PLOTFILES
 amr.plot_files_output = 1
 amr.plot_file         = plt       # root name of plotfile
 # amr.plot_int          = 5       # number of timesteps between plotfiles
-amr.plot_per          = 1.0e-05   # number of timesteps between plotfiles
+amr.plot_per          = 5.0e-07   # number of timesteps between plotfiles
 
 #PROBIN FILENAME
 amr.probin_file = probin-regt
@@ -85,14 +98,16 @@ amr.probin_file = probin-regt
 tagging.temperr = 500.0
 tagging.max_temperr_lev = 2
 
-tagging.presserr = 5.5e+6
-tagging.max_presserr_lev = 0	
-
 tagging.vfracerr = 1e20
 tagging.max_vfracerr_lev = 5
 
-tagging.ftracerr = 1.0e-4
-tagging.max_ftracerr_lev = 0
+tagging.dom_lbnd_x = -0.1
+tagging.dom_hbnd_x = 0.3
+tagging.dom_lbnd_y = 1.8
+tagging.dom_hbnd_y = 2.15
+tagging.dom_lbnd_z = -0.2
+tagging.dom_hbnd_z = 0.2
+tagging.max_dom_bnd_lev = 4
 
 amr.derive_plot_vars = density xmom ymom zmom eden Temp pressure x_velocity y_velocity z_velocity magvel magvort
 pelec.plot_rhoy = 0
@@ -115,6 +130,7 @@ cvode.solve_type = dense_direct
 ode.verbosity    = 2
 ode.analytical_jacobian = 1
 pelec.chem_integrator = ReactorCvode
+pelec.use_typ_vals_chem = true
 #ode.rtol         = 1e-08
 #ode.atol         = 1e-14
 ode.implicit_solve=0
@@ -126,18 +142,12 @@ pelec.eb_isothermal = 0
 pelec.eb_noslip  = 1
 pelec.clean_massfrac = 1 #force massfrac between 0 and 1
 eb_verbosity = 1            # verbosity of EB data
+pelec.redistribution_type = StateRedist
+pelec.eb_srd_max_order = 0
 
 # eb2.geom_type = all_regular
 eb2.use_eb2 = 1
 eb2.small_volfrac = 1.e-6
-eb2.geom_type = 3D-ignition_vessel
+eb2.geom_type = UserDefined
 ebd.boundary_grad_stencil_type=0
-electrodes.cathode_small_radius = 0.001
-electrodes.cathode_large_radius = 0.075
-electrodes.cathode_chamfer_height = 0.0625
-electrodes.cathode_tip_location   = 0.125
 
-electrodes.anode_small_radius = 0.005
-electrodes.anode_large_radius = 0.075
-electrodes.anode_chamfer_height = 0.0625
-electrodes.anode_tip_location   = 0.05
