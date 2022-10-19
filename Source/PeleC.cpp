@@ -756,9 +756,9 @@ PeleC::initData()
     //   initLevelDataFromPlt(level, init_pltfile, S_new);
     // }
     amrex::Gpu::synchronize();
-  } else {
+  } //else {
    // initLevelDataFromPlt(level, init_pltfile, S_new);
-  }
+  //}
 
   enforce_consistent_e(S_new);
 
@@ -2061,7 +2061,6 @@ PeleC::build_fine_mask()
   amrex::BoxArray fba = parent->boxArray(level);
   amrex::iMultiFab ifine_mask = makeFineMask(cba, cdm, fba, crse_ratio, 1, 0);
 
-<<<<<<< HEAD
   const auto& arrs = fine_mask.arrays();
   const auto& iarrs = ifine_mask.const_arrays();
   amrex::ParallelFor(
@@ -2119,84 +2118,3 @@ PeleC::clean_state(const amrex::MultiFab& /*S*/, amrex::MultiFab& /*S_old*/)
   return 0.0;
 }
 
-void
-PeleC::InitialRedistribution(
-  const amrex::Real time,
-  const amrex::Vector<amrex::BCRec> bcs,
-  amrex::MultiFab& S_new)
-{
-  BL_PROFILE("PeleC::InitialRedistribution()");
-
-  // Next we must redistribute the initial solution if we are going to use
-  // StateRedist redistribution schemes
-  if ((eb_in_domain) && (redistribution_type != "StateRedist")) {
-    return;
-  }
-
-  if (verbose != 0) {
-    amrex::Print() << "Doing initial redistribution... " << std::endl;
-  }
-
-  // Initial data are set at new time step
-  amrex::MultiFab tmp(
-    grids, dmap, S_new.nComp(), numGrow(), amrex::MFInfo(), Factory());
-
-  amrex::MultiFab::Copy(tmp, S_new, 0, 0, S_new.nComp(), S_new.nGrow());
-  FillPatch(*this, tmp, numGrow(), time, State_Type, 0, S_new.nComp());
-  EB_set_covered(tmp, 0.0);
-
-  amrex::Gpu::DeviceVector<amrex::BCRec> d_bcs(bcs.size());
-  amrex::Gpu::copy(
-    amrex::Gpu::hostToDevice, bcs.begin(), bcs.end(), d_bcs.begin());
-
-  for (amrex::MFIter mfi(S_new, amrex::TilingIfNotGPU()); mfi.isValid();
-       ++mfi) {
-    const amrex::Box& bx = mfi.validbox();
-
-    auto const& fact =
-      dynamic_cast<amrex::EBFArrayBoxFactory const&>(S_new.Factory());
-
-    auto const& flags = fact.getMultiEBCellFlagFab()[mfi];
-    amrex::Array4<const amrex::EBCellFlag> const& flag_arr =
-      flags.const_array();
-
-    if (
-      (flags.getType(amrex::grow(bx, 1)) != amrex::FabType::covered) &&
-      (flags.getType(amrex::grow(bx, 1)) != amrex::FabType::regular)) {
-      amrex::Array4<const amrex::Real> AMREX_D_DECL(fcx, fcy, fcz), ccc,
-        AMREX_D_DECL(apx, apy, apz);
-
-      AMREX_D_TERM(fcx = fact.getFaceCent()[0]->const_array(mfi);
-                   , fcy = fact.getFaceCent()[1]->const_array(mfi);
-                   , fcz = fact.getFaceCent()[2]->const_array(mfi););
-
-      ccc = fact.getCentroid().const_array(mfi);
-
-      AMREX_D_TERM(apx = fact.getAreaFrac()[0]->const_array(mfi);
-                   , apy = fact.getAreaFrac()[1]->const_array(mfi);
-                   , apz = fact.getAreaFrac()[2]->const_array(mfi););
-
-      const auto& sarr = S_new.array(mfi);
-      const auto& tarr = tmp.array(mfi);
-      Redistribution::ApplyToInitialData(
-        bx, NVAR, sarr, tarr, flag_arr, AMREX_D_DECL(apx, apy, apz),
-        vfrac.const_array(mfi), AMREX_D_DECL(fcx, fcy, fcz), ccc,
-        d_bcs.dataPtr(), geom, redistribution_type, eb_srd_max_order);
-
-      // Make sure rho is same as sum rhoY after redistribution
-      amrex::ParallelFor(
-        bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-          amrex::Real drhoYsum = 0.0;
-          for (int n = 0; n < NUM_SPECIES; n++) {
-            drhoYsum += sarr(i, j, k, UFS + n) - tarr(i, j, k, UFS + n);
-          }
-          sarr(i, j, k, URHO) = tarr(i, j, k, URHO) + drhoYsum;
-        });
-      amrex::ParallelFor(
-        bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
-          pc_check_initial_species(i, j, k, sarr);
-        });
-    }
-  }
-  set_body_state(S_new);
-}
