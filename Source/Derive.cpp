@@ -884,6 +884,71 @@ PeleC::pc_derdiffusivity(
   });
 }
 
+void
+pc_vel_ders(
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int /*dcomp*/,
+  int /*ncomp*/,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& geomdata,
+  amrex::Real /*time*/,
+  const int* /*bcrec*/,
+  const int /*level*/)
+{
+  auto const dat = datfab.const_array();
+  auto vel_ders = derfab.array();
+
+  const amrex::Box& gbx = amrex::grow(bx, 1);
+
+  amrex::FArrayBox local(gbx, 3, amrex::The_Async_Arena());
+  auto larr = local.array();
+
+  const auto& flag_fab = amrex::getEBCellFlagFab(datfab);
+  const auto& typ = flag_fab.getType(bx);
+  if (typ == amrex::FabType::covered) {
+    derfab.setVal<amrex::RunOn::Device>(0.0, bx);
+    return;
+  }
+  const auto& flags = flag_fab.const_array();
+  const bool all_regular = typ == amrex::FabType::regular;
+
+  // Convert momentum to velocity.
+  amrex::ParallelFor(gbx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    const amrex::Real rhoInv = 1.0 / dat(i, j, k, URHO);
+    larr(i, j, k, 0) = dat(i, j, k, UMX) * rhoInv;
+    larr(i, j, k, 1) = dat(i, j, k, UMY) * rhoInv;
+    larr(i, j, k, 2) = dat(i, j, k, UMZ) * rhoInv;
+  });
+
+  AMREX_D_TERM(const amrex::Real dx = geomdata.CellSize(0);
+               , const amrex::Real dy = geomdata.CellSize(1);
+               , const amrex::Real dz = geomdata.CellSize(2););
+
+  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    AMREX_D_TERM(int im; int ip;, int jm; int jp;, int km; int kp;);
+    AMREX_D_TERM(get_idx(i, 0, all_regular, flags(i, j, k), im, ip);
+                 , get_idx(j, 1, all_regular, flags(i, j, k), jm, jp);
+                 , get_idx(k, 2, all_regular, flags(i, j, k), km, kp););
+    AMREX_D_TERM(const amrex::Real wi = get_weight(im, ip);
+                 , const amrex::Real wj = get_weight(jm, jp);
+                 , const amrex::Real wk = get_weight(km, kp););
+
+    vel_ders(i, j, k, 0) = wi * (larr(ip, j, k, 0) - larr(im, j, k, 0)) / dx; // dudx
+    vel_ders(i, j, k, 1) = wj * (larr(i, jp, k, 0) - larr(i, jm, k, 0)) / dy; // dudy
+    vel_ders(i, j, k, 2) = wk * (larr(i, j, kp, 0) - larr(i, j, km, 0)) / dz; // dudz
+
+    vel_ders(i, j, k, 3) = wi * (larr(ip, j, k, 1) - larr(im, j, k, 1)) / dx; // dvdx
+    vel_ders(i, j, k, 4) = wj * (larr(i, jp, k, 1) - larr(i, jm, k, 1)) / dy; // dvdy
+    vel_ders(i, j, k, 5) = wk * (larr(i, j, kp, 1) - larr(i, j, km, 1)) / dz; // dvdz
+
+    vel_ders(i, j, k, 6) = wi * (larr(ip, j, k, 2) - larr(im, j, k, 2)) / dx; // dwdx
+    vel_ders(i, j, k, 7) = wj * (larr(i, jp, k, 2) - larr(i, jm, k, 2)) / dy; // dwdy
+    vel_ders(i, j, k, 8) = wk * (larr(i, j, kp, 2) - larr(i, j, km, 2)) / dz; // dwdz
+  });
+}
+
+
 #ifdef PELEC_USE_MASA
 void
 pc_derrhommserror(

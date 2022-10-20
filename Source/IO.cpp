@@ -439,6 +439,22 @@ PeleC::setPlotVariables()
   } else {
     amrex::Amr::deleteDerivePlotVar("molefrac");
   }
+
+  bool plot_vel_ders = false;
+  pp.query("plot_vel_ders", plot_vel_ders);
+  if (plot_vel_ders) {
+    amrex::Amr::addDerivePlotVar("vel_ders");
+  } else {
+    amrex::Amr::deleteDerivePlotVar("vel_ders");
+  }
+
+  // bool plot_state_ders = false;
+  // pp.query("plot_state_ders", plot_state_ders);
+  // if (plot_state_ders) {
+  //   amrex::Amr::addDerivePlotVar("state_ders");
+  // } else {
+  //   amrex::Amr::deleteDerivePlotVar("state_ders");
+  // }
 }
 
 void

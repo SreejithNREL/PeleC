@@ -598,6 +598,41 @@ PeleC::variableSetUp()
     derive_lst.addComponent("Pr_T", desc_lst, State_Type, Density, 1);
   }
 
+  // Velocity gradient tensor
+  amrex::Vector<std::string> var_names_vel_ders(9);
+  var_names_vel_ders[0] = "dudx";
+  var_names_vel_ders[1] = "dudy";
+  var_names_vel_ders[2] = "dudz";
+  var_names_vel_ders[3] = "dvdx";
+  var_names_vel_ders[4] = "dvdy";
+  var_names_vel_ders[5] = "dvdz";
+  var_names_vel_ders[6] = "dwdx";
+  var_names_vel_ders[7] = "dwdy";
+  var_names_vel_ders[8] = "dwdz";
+  derive_lst.add(
+    "vel_ders", amrex::IndexType::TheCellType(), 9, var_names_vel_ders,
+    pc_vel_ders, amrex::DeriveRec::GrowBoxByOne);
+  derive_lst.addComponent("vel_ders", desc_lst, State_Type, Density, NVAR);
+
+  // // State gradients
+  // amrex::Vector<std::string> var_state_names_ders(6);
+  // var_state_names_ders[0] = "drhodx";
+  // var_state_names_ders[1] = "drhody";
+  // var_state_names_ders[2] = "drhodz";
+  // var_state_names_ders[3] = "dTempdx";
+  // var_state_names_ders[4] = "dTempdy";
+  // var_state_names_ders[5] = "dTempdz";
+  // derive_lst.add(
+  //   "state_ders", amrex::IndexType::TheCellType(), 6,
+  //   var_state_names_ders, pc_state_ders, amrex::DeriveRec::GrowBoxByOne);
+  // derive_lst.addComponent("state_ders", desc_lst, State_Type, Density, NVAR);
+
+  // // Species Mass Frac gradients
+  // amrex::Vector<std::string> var_names_massfrac(NUM_SPECIES);
+  // for (int i = 0; i < NUM_SPECIES; i++) {
+  //   var_names_massfrac[i] = "Y(" + spec_names[i] + ")";
+  // }
+
   // MMS derives
 #ifdef PELEC_USE_MASA
   if (do_mms) {

@@ -1668,7 +1668,9 @@ PeleC::derive(const std::string& name, amrex::Real time, int ngrow)
   }
 
   // For those using GrowBoxByOne we need this
-  if ((name == "enstrophy") || (name == "magvort") || (name == "divu")) {
+  if (
+    (name == "enstrophy") || (name == "magvort") || (name == "divu") ||
+    (name == "vel_ders")) {
     ngrow += 1;
   }
 
