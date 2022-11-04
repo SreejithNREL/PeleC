@@ -761,13 +761,20 @@ PeleC::writeBuildInfo(std::ostream& os)
 
 void
 PeleC::initLevelDataFromPlt(
-  const int lev, const std::string& dataPltFile, amrex::MultiFab& S_new,
+  const int lev,
+  const std::string& dataPltFile,
+  amrex::MultiFab& S_new,
   bool lm_to_c)
 {
-  if (lm_to_c){
-    amrex::Print() << "Using data (rho, u, T, Y) from pltfile - LM to C mode " << dataPltFile
-                   << std::endl;
-  }else{
+  // Get the EB geometry to handle lm to c differences
+  const auto& ebfactory =
+    dynamic_cast<amrex::EBFArrayBoxFactory const&>(Factory());
+  amrex::MultiFab::Copy(vfrac, ebfactory.getVolFrac(), 0, 0, 1, numGrow());
+
+  if (lm_to_c) {
+    amrex::Print() << "Using data (rho, u, T, Y) from pltfile - LM to C mode "
+                   << dataPltFile << std::endl;
+  } else {
     amrex::Print() << "Using data (rho, u, T, Y) from pltfile " << dataPltFile
                    << std::endl;
   }
@@ -777,7 +784,8 @@ PeleC::initLevelDataFromPlt(
 
   // Read rho, u, temperature (required)
   std::string temp_name = "Temp";
-  if (lm_to_c) temp_name = "temp";
+  if (lm_to_c)
+    temp_name = "temp";
   std::map<std::string, int> vars{
     {"density", -1}, {"x_velocity", -1}, {temp_name, -1}};
 
@@ -803,16 +811,18 @@ PeleC::initLevelDataFromPlt(
 
   // Sanity check the species, clean them up if they aren't too bad
   auto sarrs = S_new.arrays();
+  auto varrs = vfrac.arrays();
   const auto tol = init_pltfile_massfrac_tol;
   amrex::ParallelFor(
     S_new, [=] AMREX_GPU_DEVICE(int nbx, int i, int j, int k) noexcept {
       auto sarr = sarrs[nbx];
+      auto vf = varrs[nbx];
       amrex::Real sumY = 0.0;
 
-      if (lm_to_c){
+      if (lm_to_c) {
         sarr(i, j, k, URHO) *= 1e-3;
         for (int n = 0; n < AMREX_SPACEDIM; n++) {
-          sarr(i, j, k, UMX+n) *= 1e2;
+          sarr(i, j, k, UMX + n) *= 1e2;
         }
       }
 
@@ -820,7 +830,7 @@ PeleC::initLevelDataFromPlt(
         // if the species is not too far out of bounds, clip it
         const auto mf = sarr(i, j, k, UFS + n);
         if ((mf < 0.0) || (1.0 < mf)) {
-	  //amrex::Print() << "tol " << tol << "mf " << mf << '\n';
+          // amrex::Print() << "tol " << tol << "mf " << mf << '\n';
           if (((-tol < mf) && (mf < 0.0)) || ((1.0 < mf) && (mf < 1 + tol))) {
             sarr(i, j, k, UFS + n) =
               amrex::min<amrex::Real>(1.0, amrex::max<amrex::Real>(0.0, mf));
@@ -842,20 +852,22 @@ PeleC::initLevelDataFromPlt(
       }
 
       // If the sumY isn't too far from 1, renormalize
-      if (amrex::Math::abs(1.0 - sumY) < tol) {
-        for (int n = 0; n < NUM_SPECIES; n++) {
-          sarr(i, j, k, UFS + n) /= sumY;
-        }
-      } else {
+      if (vf(i, j, k) > 0.5) {
+        if (amrex::Math::abs(1.0 - sumY) < tol) {
+          for (int n = 0; n < NUM_SPECIES; n++) {
+            sarr(i, j, k, UFS + n) /= sumY;
+          }
+        } else {
 #ifdef AMREX_USE_GPU
-        AMREX_DEVICE_PRINTF(
-          "Species mass fraction don't sum to 1. The sum is: %g", sumY);
-        amrex::Abort();
+          AMREX_DEVICE_PRINTF(
+            "Species mass fraction don't sum to 1. The sum is: %g", sumY);
+          amrex::Abort();
 #else
-        amrex::Abort(
-          "Species mass fraction don't sum to 1. The sum is: " +
-          std::to_string(sumY));
+          amrex::Abort(
+            "Species mass fraction don't sum to 1. The sum is: " +
+            std::to_string(sumY));
 #endif
+        }
       }
     });
   amrex::Gpu::synchronize();
@@ -864,6 +876,7 @@ PeleC::initLevelDataFromPlt(
   amrex::ParallelFor(
     S_new, [=] AMREX_GPU_DEVICE(int nbx, int i, int j, int k) noexcept {
       auto sarr = sarrs[nbx];
+      auto vf = varrs[nbx];
       const amrex::Real rho = sarr(i, j, k, URHO);
       const amrex::Real temp = sarr(i, j, k, UTEMP);
       amrex::Real massfrac[NUM_SPECIES] = {0.0};
@@ -875,17 +888,22 @@ PeleC::initLevelDataFromPlt(
                    , sarr(i, j, k, UMZ) *= rho;)
 
       auto eos = pele::physics::PhysicsType::eos();
-      amrex::Real eint = 0.0;
-      eos.RTY2E(rho, temp, massfrac, eint);
+      if (vf(i, j, k) > 0.5) {
+        amrex::Real eint = 0.0;
+        eos.RTY2E(rho, temp, massfrac, eint);
+        sarr(i, j, k, UEINT) = rho * eint;
 
-      sarr(i, j, k, UEINT) = rho * eint;
-      sarr(i, j, k, UEDEN) =
-        rho * eint + 0.5 *
-                       (AMREX_D_TERM(
-                         sarr(i, j, k, UMX) * sarr(i, j, k, UMX),
-                         +sarr(i, j, k, UMY) * sarr(i, j, k, UMY),
-                         +sarr(i, j, k, UMZ) * sarr(i, j, k, UMZ))) /
-                       rho;
+        const amrex::Real rhoInv = 1.0 / rho;
+        const amrex::Real u = sarr(i, j, k, UMX) * rhoInv;
+        const amrex::Real v = sarr(i, j, k, UMY) * rhoInv;
+        const amrex::Real w = sarr(i, j, k, UMZ) * rhoInv;
+        sarr(i, j, k, UEDEN) = sarr(i, j, k, UEINT) + 0.5 *
+                                                        sarr(i, j, k, URHO) *
+                                                        (u * u + v * v + w * w);
+      } else {
+        sarr(i, j, k, UEINT) = 0.0;
+        sarr(i, j, k, UEDEN) = 0.0;
+      }
     });
   amrex::Gpu::synchronize();
 }

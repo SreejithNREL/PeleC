@@ -655,15 +655,18 @@ PeleC::initData()
       });
     amrex::Gpu::synchronize();
   } else {
-    if (init_pltfile_from_lm){
+    if (init_pltfile_from_lm) {
       initLevelDataFromPlt(level, init_pltfile, S_new, true);
-    }else{
+    } else {
       initLevelDataFromPlt(level, init_pltfile, S_new);
     }
-    //initLevelDataFromLMPlt(level, init_pltfile, S_new);
+    // initLevelDataFromLMPlt(level, init_pltfile, S_new);
   }
 
-  enforce_consistent_e(S_new);
+  // LM does not define species/density in the EB region, leading to nans
+  if (!init_pltfile_from_lm) {
+    enforce_consistent_e(S_new);
+  }
 
   // computeTemp(S_new,0);
 
