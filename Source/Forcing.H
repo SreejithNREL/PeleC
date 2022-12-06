@@ -47,13 +47,18 @@ amrex::Real exp_correlation(
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
-amrex::Real evib_equil(amrex::Real Temp){
+amrex::Real evib_equil(amrex::Real e_tr){
     amrex::Real theta_1 = 3396; //[K]  first quantum vibrational state of N2
     
-    amrex::Real mw = 28.0; // N2 molecular weight [kg/kmol]
-    amrex::Real r = pele::physics::Constants::RU/mw; //[J/kg/K]
+    amrex::Real mw = 28.0; // N2 molecular weight [g/mol]
+    amrex::Real tras_deg_freedom = 5.;
+    amrex::Real r = pele::physics::Constants::RU/mw; //[erg/g/K]
 
-    return (r*theta_1)/(exp(theta_1/Temp)-1);
+    amrex::Real Ttr = e_tr/tras_deg_freedom/0.5/r;
+
+    // amrex::Real Tvib = theta_1/log(r*theta_1/evib+1);
+
+    return (r*theta_1)/(exp(theta_1/Ttr)-1);
 
 }
 
@@ -108,10 +113,11 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 amrex::Real R_vt(amrex::Real rho, 
                  amrex::Real e_vib,
+                 amrex::Real e_tr,
                  amrex::Real massfrac[NUM_SPECIES],
                  amrex::Real Temp){
 
- return rho*(e_vib - evib_equil(Temp))/tau_vt(massfrac,Temp,rho);
+ return rho*(e_vib - evib_equil(e_tr))/tau_vt(massfrac,Temp,rho);
 }
 
 AMREX_GPU_DEVICE
@@ -236,17 +242,18 @@ void LTP_ignition_source(
   amrex::Real tau_hat = ign_duration/tau_p;   //pulse width
   amrex::Real N       = prob_parm.npulses;    //Number of pulses
 
-  // amrex::Real Ep      = prob_parm.base_power*1.e+1;  //base power [J/m3] -> [erg/cm3]
-  amrex::Real Ep      = prob_parm.base_power*1.e+1/ign_duration;  //base power [J/m3] -> [erg/cm3/s]
+  amrex::Real Ep      = prob_parm.base_power*1.e+1;  //base power [J/m3] -> [erg/cm3]
+  // amrex::Real Ep      = prob_parm.base_power*1.e+1/ign_duration;  //base power [J/m3] -> [erg/cm3/s]
 
   //variables related to Castela's model
-  amrex::Real g_chem = 0.35; //fraction of energy going to ultrafast dissociation
+  amrex::Real g_chem = 0.28; //fraction of energy going to ultrafast dissociation
   amrex::Real g_heat = 0.2; //fraction of energy going to ultrafast heating
   amrex::Real alpha_castela = g_chem+g_heat; // fraction of energy going to ultrafast dissociation and heating
 
   amrex::Real massfrac[NUM_SPECIES]; 
   amrex::Real rho = state(i, j, k, URHO);
-  amrex::Real e_vib_local = state(i, j, k, UFA);
+  amrex::Real e_vib_local = state(i, j, k, UFA)/rho;
+  amrex::Real e_tr_local  = state(i, j, k, UEINT)/rho; //assumed to be the mixture internal energy
   amrex::Real Temp        = state(i, j, k, UTEMP);
 
   //local massfraction
@@ -255,7 +262,7 @@ void LTP_ignition_source(
 
   //relaxation rate of the vibrational energy
   amrex::Real Rvt;
-  Rvt = R_vt(rho,e_vib_local,massfrac,Temp);
+  Rvt = R_vt(rho,e_vib_local,e_tr_local,massfrac,Temp);
   
   //reaction rates vector is initialized with zero. It is changed to a computed value during ignition (B > 0)
   for (int n = 0; n < NUM_SPECIES; n++)
