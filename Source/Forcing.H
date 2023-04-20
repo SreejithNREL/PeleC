@@ -32,6 +32,67 @@ amrex::Real heavyside_device(amrex::Real t){
   }
 }
 
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real sigmoid(amrex::Real  x, L ,x0, k, b):
+        y = L / (1 + np.exp(-k*(x-x0))) + b
+        return y
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE    
+amrex::Real linear(amrex::Real  x, amrex::Real coeff[2]):
+        y = coeff[0]*x + coeff[1]       
+        return y
+        
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE    
+amrex::Real gas_heating_fit(amrex::Real t):
+        popt = {0.23756721, 18.26703574, 0.76891695, 0.12651797};
+        return sigmoid(t*1e+9, popt);
+        
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE    
+amrex::Real O_fit(amrex::Real t):
+        amrex:: coeff = {-4.51858804e-05, 2.18109538e-01};
+        return linear(t*1e+9, coeff); // linear fit used to accomodate O(1D) and O(1S) also
+        
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE        
+amrex::Real N_fit(amrex::Real t):
+        popt = {-1.23660155e-03, 1.66970621e+01, 7.41298346e+00, 3.63541666e-02};
+        return sigmoid(t*1e+9, popt);
+        
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE        
+amrex::Real CH4_fit(amrex::Real t):
+        popt = {-2.54920726e+00, 1.24408260e+04, 1.70345807e-04, 3.27583414e-01};
+        return sigmoid(t*1e+9, popt);
+        
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE        
+amrex::Real CH3_fit(amrex::Real t):
+        popt = {2.48709715e-02, 1.90208253e+01, 1.17909772e+00, 1.56517665e-02};
+        return sigmoid(t*1e+9, popt);
+        
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+amrex::Real H_fit(amrex::Real t):
+        popt = {0.01971283, 18.39800779, 2.03434152, 0.02029359};
+        return sigmoid(t*1e+9, popt);
+        
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE        
+amrex::Real N2_vib_fit(amrex::Real t):
+        popt = {0.01702907, 16.81933102, -2.24515485, 0.20400711};
+        return sigmoid(t*1e+9, popt);
+        
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
@@ -56,8 +117,6 @@ amrex::Real evib_equil(amrex::Real e_tr){
 
     amrex::Real Ttr = e_tr/tras_deg_freedom/0.5/r;
 
-    // amrex::Real Tvib = theta_1/log(r*theta_1/evib+1);
-
     return (r*theta_1)/(exp(theta_1/Ttr)-1);
 
 }
@@ -76,11 +135,10 @@ amrex::Real tau_vt(amrex::Real massfrac[NUM_SPECIES],
     amrex::Real P;
 
     eos.RTY2P(rho, Temp, massfrac, P);
-    // P = P * 0.1; //Convert Pele pressure to Pa
 
     eos.Y2X(massfrac,molefrac);
-    amrex::Real mw[NUM_SPECIES];
-    eos.molecular_weight(mw);
+    // amrex::Real mw[NUM_SPECIES];
+    // eos.molecular_weight(mw);
     
     amrex::Real pk,ak,bk;
 
@@ -207,6 +265,7 @@ amrex::Real castela_energy_dist(amrex::Real x,
   amrex::Real r = sqrt(pow((0.0-x),2)+pow((0.0-y),2)+pow((0.0-z),2)); //radial distance from the ignition center
 
   return 1.0-pow(erf(pow(r,2)/a),b);
+  // return 1.0-pow(erf(r/a),b);
 }
 
 AMREX_GPU_DEVICE
@@ -246,8 +305,8 @@ void LTP_ignition_source(
   // amrex::Real Ep      = prob_parm.base_power*1.e+1/ign_duration;  //base power [J/m3] -> [erg/cm3/s]
 
   //variables related to Castela's model
-  amrex::Real g_chem = 0.28; //fraction of energy going to ultrafast dissociation
-  amrex::Real g_heat = 0.2; //fraction of energy going to ultrafast heating
+  amrex::Real g_chem = 0.18; //fraction of energy going to ultrafast dissociation
+  amrex::Real g_heat = 0.27; //fraction of energy going to ultrafast heating
   amrex::Real alpha_castela = g_chem+g_heat; // fraction of energy going to ultrafast dissociation and heating
 
   amrex::Real massfrac[NUM_SPECIES]; 
@@ -294,8 +353,8 @@ void LTP_ignition_source(
     // y = y - t*Vel[1];
     // z = z - t*Vel[2];
 
-    // amrex::Real energy_dist = vyaas_energy_dist(B,x,y,z);
-    amrex::Real energy_dist = castela_energy_dist(x,y,z);
+    amrex::Real energy_dist = vyaas_energy_dist(B,x,y,z);
+    // amrex::Real energy_dist = castela_energy_dist(x,y,z);
     
     // Finished computing spatial distribution. 
     // Lets now move to the division of deposited energy into 
