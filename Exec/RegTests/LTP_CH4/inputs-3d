@@ -1,0 +1,155 @@
+# ------------------  INPUTS TO MAIN PROGRAM  -------------------
+stop_time = 1.e-03
+# stop_time = 800.e-06
+max_step  = 100000
+
+# PROBLEM SIZE & GEOMETRY
+geometry.is_periodic = 0 0 0
+geometry.coord_sys   = 0  # 0 => cart, 1 => RZ  2=>spherical
+geometry.prob_lo     =   0.0       1.42     0.0
+geometry.prob_hi     =   0.4       2.22     0.4
+amr.n_cell           =   64        128     64
+
+# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
+# Interior, UserBC, Symmetry, SlipWall, NoSlipWall
+# >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
+pelec.lo_bc       =  "Symmetry"    "FOExtrap" "Symmetry"
+pelec.hi_bc       =  "FOExtrap"  "FOExtrap" "FOExtrap"
+
+# TIME STEP CONTROL
+# pelec.cfl         = 0.001      # cfl number for hyperbolic system
+pelec.cfl         = 0.2      # cfl number for hyperbolic system
+pelec.init_shrink = 1.0e-00   # scale back initial timestep
+pelec.change_max  = 1.1       # scale back initial timestep
+pelec.dt_cutoff   = 5.e-20    # level 0 timestep below which we halt
+pelec.initial_dt  = 1.e-10
+# pelec.fixed_dt    = 1.e-10
+
+# PROBLEM PARAMETERS
+prob.pamb           = 1.3e+6
+prob.T_in           = 343.0
+prob.phi_in         = 1.0
+prob.dilution       = 2.8
+prob.turbulence     = true
+prob.vn_in          = 0.0      # [cm/s]
+
+#LTP model parameters
+prob.base_power     = 1.5e+14
+# prob.base_power     = 1.14e+14
+prob.dwell          = 300.e-06  #pulse width
+prob.npulses        = 2.0       #Number of pulses
+prob.pulse_duration = 20.e-09 #duration of the ignition pulse [s]
+prob.ltp_start_time = 0e-3
+
+#Turbulent inflow parameters
+# prob.turb_file = Turb_tprf_phi1_egr10_Ka6
+# prob.turb_scale_loc = 0.01
+# prob.turb_scale_vel = 100.0
+# prob.turb_center = 1.82 0.0
+# prob.turb_conv_vel = 500.
+# prob.turb_nplane = 20  #n points in time direction to read each time
+
+# DIAGNOSTICS & VERBOSITY
+pelec.sum_interval = 1       # coarse time steps between computing mass on domain
+pelec.v            = 1       # verbosity in PeleC cpp files
+amr.v              = 1       # verbosity in Amr.cpp
+amr.grid_log       = grdlog  # name of grid logging file
+
+# DEBUG FLAGS
+#amrex.fpe_trap_invalid=1
+#amrex.fpe_trap_overflow=1
+#amrex.fpe_trap_zero=1
+
+# REFINEMENT / REGRIDDING 
+amr.max_level       = 1          # maximum level number allowed
+amr.ref_ratio       = 2 2 2 2    # refinement ratio
+amr.regrid_int      = 10         # how often to regrid
+amr.n_error_buf     = 2          # number of buffer cells in error est
+amr.grid_eff        = 0.7        # what constitutes an efficient grid
+amr.blocking_factor = 8          # block factor in grid generation
+amr.max_grid_size   = 32          # maximum box size
+amr.loadbalance_with_workestimates = 1
+# amr.restart = results_1pulse_0.71mJ_total_noneq_028_gchem/chk22500
+
+
+# CHECKPOINT FILES
+amr.checkpoint_files_output = 1
+amr.check_file              = results_2pulse_0.71mJ_total_noneq_018_gchem_027_gheat/chk    # root name of checkpoint file
+amr.check_int               = 500    # number of timesteps between checkpoints
+
+# PLOTFILES
+amr.plot_files_output = 1
+amr.plot_file         = results_2pulse_0.71mJ_total_noneq_018_gchem_027_gheat/plt       # root name of plotfile
+# amr.plot_int          = 1       # number of timesteps between plotfiles
+amr.plot_per          = 1.0e-05   # number of timesteps between plotfiles
+
+#PROBIN FILENAME
+amr.probin_file = probin-regt
+
+#AMR tagging
+tagging.temperr = 350.0
+tagging.max_temperr_lev = 3
+
+tagging.vfracerr = 1e20
+tagging.max_vfracerr_lev = 5
+
+tagging.ftracerr = 1.0e-4
+tagging.max_ftracerr_lev = 0
+
+amr.derive_plot_vars = density xmom ymom zmom eden Temp pressure x_velocity y_velocity z_velocity magvel magvort
+# pelec.extrema_spec_name = ALL
+pelec.plot_rhoy = 0
+pelec.plot_adv  = 1
+pelec.plot_massfrac = 1
+pelec.nscbc_adv  = 1
+pelec.redistribution_type = StateRedist
+pelec.do_react = 1
+pelec.do_hydro = 1
+pelec.diffuse_temp = 1
+pelec.diffuse_enth = 1
+pelec.diffuse_spec = 1
+pelec.diffuse_vel  = 1
+# pelec.flame_trac_name = OH
+pelec.do_mol = 1
+pelec.mol_iters = 1
+# pelec.ppm_temp_fix = 1
+pelec.add_ext_src = 1
+
+#CVODE PARAMETERS	
+cvode.solve_type = sparse_direct
+# cvode.solve_type = dense_direct
+ode.verbosity    = 2
+pelec.use_typ_vals_chem = true
+pelec.chem_integrator = ReactorCvode
+# pelec.chem_integrator = ReactorNull
+
+## Problem setup
+pelec.eb_boundary_T = 343.
+pelec.eb_isothermal = 0
+pelec.eb_noslip  = 1
+pelec.eb_small_vfrac = 0.e-3 #EB threshold
+pelec.clean_massfrac = 1 #force massfrac between 0 and 1
+eb_verbosity = 1            # verbosity of EB data
+
+# eb2.geom_type = all_regular
+eb2.use_eb2 = 1
+eb2.geom_type = 3D-ignition_vessel
+ebd.boundary_grad_stencil_type=0
+ignition_vessel.offset=0.1
+electrodes.cathode_small_radius = 0.001
+electrodes.cathode_large_radius = 0.075
+electrodes.cathode_chamfer_height = 0.0625
+electrodes.cathode_tip_location   = 0.125
+
+electrodes.anode_small_radius = 0.005
+electrodes.anode_large_radius = 0.075
+electrodes.anode_chamfer_height = 0.0625
+electrodes.anode_tip_location   = 0.05
+
+#--------------------------DEBUG/REGTESTS INPUTS-----------------------------
+amrex.regtest_reduction = 1
+amrex.fpe_trap_invalid  = 1
+amrex.fpe_trap_zero     = 1
+amrex.fpe_trap_overflow = 1
+amrex.abort_on_out_of_gpu_memory=1
+amrex.the_arena_is_managed = 1
