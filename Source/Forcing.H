@@ -34,64 +34,70 @@ amrex::Real heavyside_device(amrex::Real t){
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
-amrex::Real sigmoid(amrex::Real  x, L ,x0, k, b):
-        y = L / (1 + np.exp(-k*(x-x0))) + b
-        return y
+amrex::Real sigmoid(amrex::Real  x, amrex::Real L , amrex::Real x0, amrex::Real k, amrex::Real b){
+        amrex::Real y = L / (1 + exp(-k*(x-x0))) + b;
+        return y;
+}
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE    
-amrex::Real linear(amrex::Real  x, amrex::Real coeff[2]):
-        y = coeff[0]*x + coeff[1]       
-        return y
-        
-
-AMREX_GPU_DEVICE
-AMREX_FORCE_INLINE    
-amrex::Real gas_heating_fit(amrex::Real t):
-        popt = {0.23756721, 18.26703574, 0.76891695, 0.12651797};
-        return sigmoid(t*1e+9, popt);
+amrex::Real linear(amrex::Real  x, amrex::Real coeff[2]){
+        amrex::Real y = coeff[0]*x + coeff[1];      
+        return y;
+}
         
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE    
-amrex::Real O_fit(amrex::Real t):
-        amrex:: coeff = {-4.51858804e-05, 2.18109538e-01};
-        return linear(t*1e+9, coeff); // linear fit used to accomodate O(1D) and O(1S) also
+amrex::Real gas_heating_fit(amrex::Real t){
+        amrex::Real popt[4] = {0.23756721, 18.26703574, 0.76891695, 0.12651797};
+        return sigmoid(t*1.e+9, popt[0], popt[1], popt[2], popt[3]);
+}
+        
+
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE    
+amrex::Real O_fit(amrex::Real t){
+        amrex::Real coeff[2] = {-4.51858804e-05, 2.18109538e-01};
+        return linear(t*1.e+9, coeff); // linear fit used to accomodate O(1D) and O(1S) also
+} 
         
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE        
-amrex::Real N_fit(amrex::Real t):
-        popt = {-1.23660155e-03, 1.66970621e+01, 7.41298346e+00, 3.63541666e-02};
-        return sigmoid(t*1e+9, popt);
+amrex::Real N_fit(amrex::Real t){
+        amrex::Real popt[4] = {-1.23660155e-03, 1.66970621e+01, 7.41298346e+00, 3.63541666e-02};
+        return sigmoid(t*1.e+9, popt[0], popt[1], popt[2], popt[3]);
+}
         
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE        
-amrex::Real CH4_fit(amrex::Real t):
-        popt = {-2.54920726e+00, 1.24408260e+04, 1.70345807e-04, 3.27583414e-01};
-        return sigmoid(t*1e+9, popt);
-        
+amrex::Real CH4_fit(amrex::Real t){
+        amrex::Real popt[4] = {-2.54920726e+00, 1.24408260e+04, 1.70345807e-04, 3.27583414e-01};
+        return sigmoid(t*1.e+9, popt[0], popt[1], popt[2], popt[3]);
+}
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE        
-amrex::Real CH3_fit(amrex::Real t):
-        popt = {2.48709715e-02, 1.90208253e+01, 1.17909772e+00, 1.56517665e-02};
-        return sigmoid(t*1e+9, popt);
-        
+amrex::Real CH3_fit(amrex::Real t){
+        amrex::Real popt[4] = {2.48709715e-02, 1.90208253e+01, 1.17909772e+00, 1.56517665e-02};
+        return sigmoid(t*1.e+9, popt[0], popt[1], popt[2], popt[3]);
+}
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
-amrex::Real H_fit(amrex::Real t):
-        popt = {0.01971283, 18.39800779, 2.03434152, 0.02029359};
-        return sigmoid(t*1e+9, popt);
-        
+amrex::Real H_fit(amrex::Real t){
+        amrex::Real popt[4] = {0.01971283, 18.39800779, 2.03434152, 0.02029359};
+        return sigmoid(t*1.e+9, popt[0], popt[1], popt[2], popt[3]);
+}       
 
 AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE        
-amrex::Real N2_vib_fit(amrex::Real t):
-        popt = {0.01702907, 16.81933102, -2.24515485, 0.20400711};
-        return sigmoid(t*1e+9, popt);
+amrex::Real N2_vib_fit(amrex::Real t){
+        amrex::Real popt[4] = {0.01702907, 16.81933102, -2.24515485, 0.20400711};
+        return sigmoid(t*1.e+9, popt[0], popt[1], popt[2], popt[3]);
+}
         
 
 AMREX_GPU_DEVICE
@@ -306,7 +312,7 @@ void LTP_ignition_source(
 
   //variables related to Castela's model
   amrex::Real g_chem = 0.18; //fraction of energy going to ultrafast dissociation
-  amrex::Real g_heat = 0.27; //fraction of energy going to ultrafast heating
+  amrex::Real g_heat = gas_heating_fit(time); //0.27; //fraction of energy going to ultrafast heating
   amrex::Real alpha_castela = g_chem+g_heat; // fraction of energy going to ultrafast dissociation and heating
 
   amrex::Real massfrac[NUM_SPECIES]; 
@@ -373,7 +379,8 @@ void LTP_ignition_source(
     Y_O2_U = prob_parm.fuel_state[UFS + O2_ID]/prob_parm.fuel_state[URHO];
     
     //Reaction source terms for ultrafast dissociation. Units [g/cm3/s]
-    omega[O_ID]  = g_chem * massfrac[O2_ID]/Y_O2_U * Ep/e[O_ID];
+    // omega[O_ID]  = g_chem * massfrac[O2_ID]/Y_O2_U * Ep/e[O_ID];
+    omega[O_ID]  = O_fit(time) * massfrac[O2_ID]/Y_O2_U * Ep/e[O_ID];
     omega[O2_ID] = - mw[O_ID]/mw[O2_ID] * omega[O_ID];
 
     //discharge energy consumed in the dissociation process
