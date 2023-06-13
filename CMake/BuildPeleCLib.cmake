@@ -9,7 +9,8 @@ function(build_pelec_lib pelec_lib_name)
     set(AMREX_SUNDIALS_DIR ${AMREX_SUBMOD_LOCATION}/Src/Extern/SUNDIALS)
 
     if(CLANG_TIDY_EXE)
-      set_target_properties(${pelec_lib_name} PROPERTIES CXX_CLANG_TIDY ${CLANG_TIDY_EXE})
+      set_target_properties(${pelec_lib_name} PROPERTIES CXX_CLANG_TIDY
+                            "${CLANG_TIDY_EXE};--config-file=${CMAKE_SOURCE_DIR}/.clang-tidy")
     endif()
 
     include(SetPeleCCompileFlags)
@@ -19,6 +20,20 @@ function(build_pelec_lib pelec_lib_name)
       ${PELE_PHYSICS_SRC_DIR}/Utility/TurbInflow/turbinflow.cpp
       ${PELE_PHYSICS_SRC_DIR}/Utility/TurbInflow/turbinflow.H)
     target_include_directories(${pelec_lib_name} PUBLIC ${PELE_PHYSICS_SRC_DIR}/Utility/TurbInflow)
+
+    target_sources(${pelec_lib_name}
+      PRIVATE
+      ${PELE_PHYSICS_SRC_DIR}/Utility/Diagnostics/DiagBase.H
+      ${PELE_PHYSICS_SRC_DIR}/Utility/Diagnostics/DiagBase.cpp
+      ${PELE_PHYSICS_SRC_DIR}/Utility/Diagnostics/DiagConditional.H
+      ${PELE_PHYSICS_SRC_DIR}/Utility/Diagnostics/DiagConditional.cpp
+      ${PELE_PHYSICS_SRC_DIR}/Utility/Diagnostics/DiagFilter.H
+      ${PELE_PHYSICS_SRC_DIR}/Utility/Diagnostics/DiagFilter.cpp
+      ${PELE_PHYSICS_SRC_DIR}/Utility/Diagnostics/DiagFramePlane.H
+      ${PELE_PHYSICS_SRC_DIR}/Utility/Diagnostics/DiagFramePlane.cpp
+      ${PELE_PHYSICS_SRC_DIR}/Utility/Diagnostics/DiagPDF.H
+      ${PELE_PHYSICS_SRC_DIR}/Utility/Diagnostics/DiagPDF.cpp)
+    target_include_directories(${pelec_lib_name} PUBLIC ${PELE_PHYSICS_SRC_DIR}/Utility/Diagnostics)
     
     target_sources(${pelec_lib_name}
       PRIVATE
@@ -28,7 +43,8 @@ function(build_pelec_lib pelec_lib_name)
     target_include_directories(${pelec_lib_name} PUBLIC ${PELE_PHYSICS_SRC_DIR}/Utility/PltFileManager)
     
     target_sources(${pelec_lib_name} PRIVATE ${AMREX_SUNDIALS_DIR}/AMReX_Sundials.H
-                                             ${AMREX_SUNDIALS_DIR}/AMReX_Sundials.cpp
+                                             ${AMREX_SUNDIALS_DIR}/AMReX_Sundials_Core.cpp
+                                             ${AMREX_SUNDIALS_DIR}/AMReX_Sundials_Core.H
                                              ${AMREX_SUNDIALS_DIR}/AMReX_NVector_MultiFab.cpp
                                              ${AMREX_SUNDIALS_DIR}/AMReX_NVector_MultiFab.H
                                              ${AMREX_SUNDIALS_DIR}/AMReX_SUNMemory.cpp
@@ -114,7 +130,7 @@ function(build_pelec_lib pelec_lib_name)
       target_link_libraries(${pelec_lib_name} PUBLIC sundials_nveccuda sundials_sunlinsolcusolversp sundials_sunmatrixcusparse)
     elseif(PELEC_ENABLE_HIP)
       target_link_libraries(${pelec_lib_name} PUBLIC sundials_nvechip)
-    elseif(PELEC_ENABLE_DPCPP)
+    elseif(PELEC_ENABLE_SYCL)
       target_link_libraries(${pelec_lib_name} PUBLIC sundials_nvecsycl)
     endif()
     

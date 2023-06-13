@@ -216,19 +216,25 @@ pc_ctoprim(
   q(i, j, k, QU) = vx;
   q(i, j, k, QV) = vy;
   q(i, j, k, QW) = vz;
+#if NUM_ADV > 0
   for (int n = 0; n < NUM_ADV; n++) {
     q(i, j, k, QFA + n) = u(i, j, k, UFA + n) / rho;
   }
+#endif
   for (int n = 0; n < NUM_SPECIES; n++) {
     q(i, j, k, QFS + n) = u(i, j, k, UFS + n) / rho;
   }
+#if NUM_AUX > 0
   for (int n = 0; n < NUM_AUX; n++) {
     q(i, j, k, QFX + n) = u(i, j, k, UFX + n) / rho;
   }
+#endif
   // Handle passive variables that are not per unit mass
+#if NUM_LIN > 0
   for (int n = 0; n < NUM_LIN; n++) {
     q(i, j, k, QLIN + n) = u(i, j, k, ULIN + n);
   }
+#endif
 
   const amrex::Real e = (u(i, j, k, UEDEN) - kineng) * rhoinv;
   amrex::Real T = u(i, j, k, UTEMP);
@@ -272,48 +278,21 @@ AMREX_GPU_DEVICE
 AMREX_FORCE_INLINE
 void
 pc_move_transcoefs_to_ec(
-  const int i,
-  const int j,
-  const int k,
+  AMREX_D_DECL(const int i, const int j, const int k),
   const int n,
   const amrex::Array4<const amrex::Real>& carr,
   amrex::Real* earr,
   const int dir,
-  const int do_harmonic)
-
+  const bool harmonic_mean)
 {
-  if (do_harmonic == 0) {
-    if (dir == 0) {
-      earr[n] = 0.5 * (carr(i, j, k, n) + carr(i - 1, j, k, n));
-    } else if (dir == 1) {
-      earr[n] = 0.5 * (carr(i, j, k, n) + carr(i, j - 1, k, n));
-    } else {
-      earr[n] = 0.5 * (carr(i, j, k, n) + carr(i, j, k - 1, n));
-    }
+  const amrex::IntVect iv{AMREX_D_DECL(i, j, k)};
+  const amrex::IntVect ivm(iv - amrex::IntVect::TheDimensionVector(dir));
+  if (harmonic_mean) {
+    const amrex::Real a = carr(iv, n);
+    const amrex::Real b = carr(ivm, n);
+    earr[n] = (a * b > 0.0) ? 2.0 * (a * b) / (a + b) : 0.0;
   } else {
-    amrex::Real a = carr(i, j, k, n);
-    if (dir == 0) {
-      amrex::Real b = carr(i - 1, j, k, n);
-      if (a * b > 0.0) {
-        earr[n] = 2.0 * (a * b) / (a + b);
-      } else {
-        earr[n] = 0.0;
-      }
-    } else if (dir == 1) {
-      amrex::Real b = carr(i, j - 1, k, n);
-      if (a * b > 0.0) {
-        earr[n] = 2.0 * (a * b) / (a + b);
-      } else {
-        earr[n] = 0.0;
-      }
-    } else {
-      amrex::Real b = carr(i, j, k - 1, n);
-      if (a * b > 0.0) {
-        earr[n] = 2.0 * (a * b) / (a + b);
-      } else {
-        earr[n] = 0.0;
-      }
-    }
+    earr[n] = 0.5 * (carr(iv, n) + carr(ivm, n));
   }
 }
 
@@ -457,7 +436,6 @@ sort(T& vec)
     for (int i = 0; i < vec_size - 1; i++) {
       for (int j = 0; j < vec_size - i - 1; j++) {
         if (d_vec[j + 1] < d_vec[j]) {
-          // swap<typename T::value_type>(&d_vec[j], &d_vec[j + 1]);
           typename T::value_type temp = d_vec[j];
           d_vec[j] = d_vec[j + 1];
           d_vec[j + 1] = temp;

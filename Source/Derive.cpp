@@ -261,8 +261,7 @@ pc_dermagvort(
 
   const amrex::Box& gbx = amrex::grow(bx, 1);
 
-  amrex::FArrayBox local(gbx, 3);
-  amrex::Elixir local_eli = local.elixir();
+  amrex::FArrayBox local(gbx, 3, amrex::The_Async_Arena());
   auto larr = local.array();
 
   const auto& flag_fab = amrex::getEBCellFlagFab(datfab);
@@ -383,8 +382,7 @@ pc_derenstrophy(
 
   const amrex::Box& gbx = amrex::grow(bx, 1);
 
-  amrex::FArrayBox local(gbx, 3);
-  amrex::Elixir local_eli = local.elixir();
+  amrex::FArrayBox local(gbx, 3, amrex::The_Async_Arena());
   auto larr = local.array();
 
   const auto& flag_fab = amrex::getEBCellFlagFab(datfab);
@@ -527,7 +525,6 @@ pc_derentropy(
   const int* /*bcrec*/,
   const int /*level*/)
 {
-  // auto const dat = datfab.const_array();
   auto sfab = derfab.array();
 
   amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
@@ -590,7 +587,6 @@ pc_derpres(
     const amrex::Real rho = dat(i, j, k, URHO);
     const amrex::Real rhoInv = 1.0 / rho;
     amrex::Real T = dat(i, j, k, UTEMP);
-    // amrex::Real e = dat(i, j, k, UEINT) * rhoInv;
     amrex::Real p;
     amrex::Real massfrac[NUM_SPECIES];
     for (int n = 0; n < NUM_SPECIES; ++n) {
@@ -740,6 +736,31 @@ pc_dercv(
 }
 
 void
+pc_dercoord(
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int /*dcomp*/,
+  int /*ncomp*/,
+  const amrex::FArrayBox& /*datfab*/,
+  const amrex::Geometry& geomdata,
+  amrex::Real /*time*/,
+  const int* /*bcrec*/,
+  int /*level*/)
+{
+  auto coord_arr = derfab.array();
+  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> prob_lo =
+    geomdata.ProbLoArray();
+  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dx =
+    geomdata.CellSizeArray();
+
+  amrex::ParallelFor(bx, [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+    AMREX_D_TERM(coord_arr(i, j, k, 0) = prob_lo[0] + (i + 0.5) * dx[0];
+                 , coord_arr(i, j, k, 1) = prob_lo[1] + (j + 0.5) * dx[1];
+                 , coord_arr(i, j, k, 2) = prob_lo[2] + (k + 0.5) * dx[2];);
+  });
+}
+
+void
 PeleC::pc_derviscosity(
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
@@ -767,10 +788,10 @@ PeleC::pc_derviscosity(
     auto trans = pele::physics::PhysicsType::transport();
     amrex::Real mu = 0.0, dum1 = 0.0, dum2 = 0.0;
     const bool get_xi = false, get_mu = true, get_lam = false,
-               get_Ddiag = false;
+               get_Ddiag = false, get_chi = false;
     trans.transport(
-      get_xi, get_mu, get_lam, get_Ddiag, T, rho, massfrac, nullptr, mu, dum1,
-      dum2, ltransparm);
+      get_xi, get_mu, get_lam, get_Ddiag, get_chi, T, rho, massfrac, nullptr,
+      nullptr, mu, dum1, dum2, ltransparm);
     mu_arr(i, j, k) = mu;
   });
 }
@@ -803,10 +824,10 @@ PeleC::pc_derbulkviscosity(
     auto trans = pele::physics::PhysicsType::transport();
     amrex::Real xi = 0.0, dum1 = 0.0, dum2 = 0.0;
     const bool get_xi = true, get_mu = false, get_lam = false,
-               get_Ddiag = false;
+               get_Ddiag = false, get_chi = false;
     trans.transport(
-      get_xi, get_mu, get_lam, get_Ddiag, T, rho, massfrac, nullptr, dum1, xi,
-      dum2, ltransparm);
+      get_xi, get_mu, get_lam, get_Ddiag, get_chi, T, rho, massfrac, nullptr,
+      nullptr, dum1, xi, dum2, ltransparm);
     xi_arr(i, j, k) = xi;
   });
 }
@@ -839,10 +860,10 @@ PeleC::pc_derconductivity(
     auto trans = pele::physics::PhysicsType::transport();
     amrex::Real lam = 0.0, dum1 = 0.0, dum2 = 0.0;
     const bool get_xi = false, get_mu = false, get_lam = true,
-               get_Ddiag = false;
+               get_Ddiag = false, get_chi = false;
     trans.transport(
-      get_xi, get_mu, get_lam, get_Ddiag, T, rho, massfrac, nullptr, dum1, dum2,
-      lam, ltransparm);
+      get_xi, get_mu, get_lam, get_Ddiag, get_chi, T, rho, massfrac, nullptr,
+      nullptr, dum1, dum2, lam, ltransparm);
     lam_arr(i, j, k) = lam;
   });
 }
@@ -876,10 +897,10 @@ PeleC::pc_derdiffusivity(
     auto trans = pele::physics::PhysicsType::transport();
     amrex::Real dum1 = 0.0, dum2 = 0.0, dum3 = 0.0;
     const bool get_xi = false, get_mu = false, get_lam = false,
-               get_Ddiag = true;
+               get_Ddiag = true, get_chi = false;
     trans.transport(
-      get_xi, get_mu, get_lam, get_Ddiag, T, rho, massfrac, ddiag, dum1, dum2,
-      dum3, ltransparm);
+      get_xi, get_mu, get_lam, get_Ddiag, get_chi, T, rho, massfrac, ddiag,
+      nullptr, dum1, dum2, dum3, ltransparm);
     for (int n = 0; n < NUM_SPECIES; n++) {
       d_arr(i, j, k, n) = ddiag[n];
     }

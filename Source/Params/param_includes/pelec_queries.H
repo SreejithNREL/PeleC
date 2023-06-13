@@ -24,6 +24,13 @@ pp.query("weno_scheme", weno_scheme);
 pp.query("nscbc_adv", nscbc_adv);
 pp.query("nscbc_diff", nscbc_diff);
 pp.query("add_ext_src", add_ext_src);
+{
+  amrex::Vector<amrex::Real> tmp(AMREX_SPACEDIM, 0.0);
+  pp.queryarr("external_forcing", tmp, 0, AMREX_SPACEDIM);
+  for (int i = 0; i < tmp.size(); i++) {
+    external_forcing[i] = tmp[i];
+  }
+}
 pp.query("add_forcing_src", add_forcing_src);
 pp.query("forcing_u0", forcing_u0);
 pp.query("forcing_v0", forcing_v0);
@@ -33,7 +40,6 @@ pp.query("ppm_type", ppm_type);
 pp.query("ppm_trace_sources", ppm_trace_sources);
 pp.query("plm_iorder", plm_iorder);
 pp.query("use_laxf_flux", use_laxf_flux);
-pp.query("riemann_solver", riemann_solver);
 pp.query("use_flattening", use_flattening);
 pp.query("dual_energy_update_E_from_e", dual_energy_update_E_from_e);
 pp.query("dual_energy_eta2", dual_energy_eta2);
@@ -49,6 +55,7 @@ pp.query("diffuse_temp", diffuse_temp);
 pp.query("diffuse_enth", diffuse_enth);
 pp.query("diffuse_spec", diffuse_spec);
 pp.query("diffuse_vel", diffuse_vel);
+pp.query("transport_harmonic_mean", transport_harmonic_mean);
 pp.query("do_les", do_les);
 pp.query("use_explicit_filter", use_explicit_filter);
 pp.query("Cs", Cs);

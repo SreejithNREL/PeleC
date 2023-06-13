@@ -1,5 +1,5 @@
-#ifndef Derive_H
-#define Derive_H
+#ifndef DERIVE_H
+#define DERIVE_H
 
 #include <AMReX_FArrayBox.H>
 #include <AMReX_Geometry.H>
@@ -320,6 +320,17 @@ void pc_dercp(
   const int level);
 
 void pc_dercv(
+  const amrex::Box& bx,
+  amrex::FArrayBox& derfab,
+  int dcomp,
+  int ncomp,
+  const amrex::FArrayBox& datfab,
+  const amrex::Geometry& geomdata,
+  amrex::Real time,
+  const int* bcrec,
+  const int level);
+
+void pc_dercoord(
   const amrex::Box& bx,
   amrex::FArrayBox& derfab,
   int dcomp,

@@ -16,7 +16,7 @@ USE_MPI = FALSE
 USE_OMP = FALSE
 USE_CUDA = FALSE
 USE_HIP = FALSE
-USE_DPCPP = FALSE
+USE_SYCL = FALSE
 
 # Debugging
 DEBUG = FALSE
@@ -33,7 +33,7 @@ USE_MASA = TRUE
 ifeq ($(USE_MASA), TRUE)
   INCLUDE_LOCATIONS += ${MASA_HOME}/include ${MASA_HOME}/lib
   LIBRARY_LOCATIONS += ${MASA_HOME}/lib
-  LIBRARIES += -Wl,-rpath,${MASA_HOME}/lib -lmasa -lfmasa
+  LIBRARIES += -Wl,-rpath,${MASA_HOME}/lib -lmasa
   DEFINES += -DPELEC_USE_MASA
 endif
 

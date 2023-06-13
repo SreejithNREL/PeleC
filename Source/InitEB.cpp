@@ -1,3 +1,9 @@
+// Need to include these before any other headers
+#ifdef AMREX_USE_SYCL
+#include <oneapi/dpl/algorithm>
+#include <oneapi/dpl/execution>
+#endif
+
 #include <memory>
 
 #include "hydro_redistribution.H"
@@ -115,8 +121,6 @@ PeleC::initialize_eb2_structs()
         }
       });
 
-      // int Nebg = sv_eb_bndry_geom[iLocal].size();
-
       // Now fill the sv_eb_bndry_geom
       auto const& vfrac_arr = vfrac.array(mfi);
       auto const& bndrycent_arr = bndrycent->array(mfi);
@@ -136,6 +140,14 @@ PeleC::initialize_eb2_structs()
       const int sv_eb_bndry_geom_size = sv_eb_bndry_geom[iLocal].size();
       thrust::sort(
         thrust::device, sv_eb_bndry_geom[iLocal].data(),
+        sv_eb_bndry_geom[iLocal].data() + sv_eb_bndry_geom_size,
+        EBBndryGeomCmp());
+#elif defined(AMREX_USE_SYCL)
+      const int sv_eb_bndry_geom_size = sv_eb_bndry_geom[iLocal].size();
+      auto policy = oneapi::dpl::execution::make_device_policy(
+        amrex::Gpu::Device::streamQueue());
+      std::sort(
+        policy, sv_eb_bndry_geom[iLocal].data(),
         sv_eb_bndry_geom[iLocal].data() + sv_eb_bndry_geom_size,
         EBBndryGeomCmp());
 #else
@@ -200,8 +212,7 @@ PeleC::initialize_eb2_structs()
       amrex::FabType typ = flagfab.getType(tbox);
       int iLocal = mfi.LocalIndex();
 
-      if (typ == amrex::FabType::regular || typ == amrex::FabType::covered) {
-      } else if (typ == amrex::FabType::singlevalued) {
+      if (typ == amrex::FabType::singlevalued) {
         const auto afrac_arr = (*areafrac[dir])[mfi].array();
         const auto facecent_arr = (*facecent[dir])[mfi].array();
 
@@ -226,7 +237,8 @@ PeleC::initialize_eb2_structs()
           Nall_cut_faces);
         amrex::IntVect* all_cut_faces = v_all_cut_faces.data();
 
-        const int sv_eb_bndry_geom_size = sv_eb_bndry_geom[iLocal].size();
+        const int sv_eb_bndry_geom_size =
+          static_cast<int>(sv_eb_bndry_geom[iLocal].size());
         // Serial loop on the GPU
         amrex::ParallelFor(1, [=] AMREX_GPU_DEVICE(int /*dummy*/) {
           int cnt = 0;
@@ -260,13 +272,33 @@ PeleC::initialize_eb2_structs()
           v_cut_faces.size(), [=] AMREX_GPU_DEVICE(int i) noexcept {
             d_cut_faces[i] = d_all_cut_faces[i];
           });
+#elif defined(AMREX_USE_SYCL)
+        const int v_all_cut_faces_size = v_all_cut_faces.size();
+        auto policy = oneapi::dpl::execution::make_device_policy(
+          amrex::Gpu::Device::streamQueue());
+        std::sort(
+          policy, v_all_cut_faces.data(),
+          v_all_cut_faces.data() + v_all_cut_faces_size);
+        amrex::IntVect* unique_result_end = std::unique(
+          policy, v_all_cut_faces.data(),
+          v_all_cut_faces.data() + v_all_cut_faces_size,
+          std::equal_to<amrex::IntVect>());
+        const int count_result =
+          std::distance(v_all_cut_faces.data(), unique_result_end);
+        amrex::Gpu::DeviceVector<amrex::IntVect> v_cut_faces(count_result);
+        amrex::IntVect* d_all_cut_faces = v_all_cut_faces.data();
+        amrex::IntVect* d_cut_faces = v_cut_faces.data();
+        amrex::ParallelFor(
+          v_cut_faces.size(), [=] AMREX_GPU_DEVICE(int i) noexcept {
+            d_cut_faces[i] = d_all_cut_faces[i];
+          });
 #else
         sort<amrex::Gpu::DeviceVector<amrex::IntVect>>(v_all_cut_faces);
-        amrex::Gpu::DeviceVector<amrex::IntVect> v_cut_faces =
+        auto v_cut_faces =
           unique<amrex::Gpu::DeviceVector<amrex::IntVect>>(v_all_cut_faces);
 #endif
 
-        const int Nsten = v_cut_faces.size();
+        const int Nsten = static_cast<int>(v_cut_faces.size());
         if (Nsten > 0) {
           flux_interp_stencil[dir][iLocal].resize(Nsten);
 
@@ -281,7 +313,8 @@ PeleC::initialize_eb2_structs()
             tbox, fbox[dir], Nsten, facecent_arr, afrac_arr,
             flux_interp_stencil[dir][iLocal].data());
         }
-      } else {
+      } else if (
+        (typ != amrex::FabType::regular) && (typ != amrex::FabType::covered)) {
         amrex::Abort("multi-valued flux interp stencil to be implemented");
       }
     }
@@ -340,7 +373,8 @@ PeleC::define_body_state()
     // Find proc with lowest rank to find valid point, use that for all
     amrex::Vector<int> found(amrex::ParallelDescriptor::NProcs(), 0);
     found[amrex::ParallelDescriptor::MyProc()] = (int)foundPt;
-    amrex::ParallelDescriptor::ReduceIntSum(&(found[0]), found.size());
+    amrex::ParallelDescriptor::ReduceIntSum(
+      found.data(), static_cast<int>(found.size()));
     int body_rank = -1;
     for (int i = 0; i < found.size(); ++i) {
       if (found[i] == 1) {
@@ -410,7 +444,11 @@ PeleC::zero_in_body(amrex::MultiFab& S) const
 // Sets up implicit function using EB2 infrastructure
 void
 initialize_EB2(
-  const amrex::Geometry& geom, const int /*unused*/, const int max_level)
+  const amrex::Geometry& geom,
+  const int eb_max_level,
+  const int max_level,
+  const amrex::Vector<amrex::IntVect>& ref_ratio,
+  const amrex::IntVect& max_grid_size)
 {
   BL_PROFILE("PeleC::initialize_EB2()");
 
@@ -421,9 +459,6 @@ initialize_EB2(
   ppeb2.query("geom_type", geom_type);
 
   int max_coarsening_level = 0;
-  amrex::ParmParse ppamr("amr");
-  amrex::Vector<int> ref_ratio(max_level, 2);
-  ppamr.queryarr("ref_ratio", ref_ratio, 0, max_level);
   for (int lev = 0; lev < max_level; ++lev) {
     max_coarsening_level +=
       (ref_ratio[lev] == 2 ? 1
@@ -441,6 +476,24 @@ initialize_EB2(
     geometry->build(geom, max_coarsening_level);
   } else {
     amrex::EB2::Build(geom, max_level, max_level);
+  }
+
+  // Add finer level, might be inconsistent with the coarser level created
+  // above.
+  if (geom_type != "chkfile") {
+    amrex::EB2::addFineLevels(max_level - eb_max_level);
+  }
+
+  bool write_chk_geom = false;
+  ppeb2.query("write_chk_geom", write_chk_geom);
+  if (write_chk_geom) {
+    const auto& is = amrex::EB2::IndexSpace::top();
+    const auto& eb_level = is.getLevel(geom);
+    std::string chkfile = "chk_geom";
+    ppeb2.query("chkfile", chkfile);
+
+    eb_level.write_to_chkpt_file(
+      chkfile, amrex::EB2::ExtendDomainFace(), max_grid_size[0]);
   }
 }
 
@@ -522,7 +575,7 @@ PeleC::eb_distance(const int lev, amrex::MultiFab& signDistLev)
     const auto& grids_ilev = pc_ilev.grids;
     const auto& dmap_ilev = pc_ilev.DistributionMap();
     amrex::BoxArray coarsenBA(grids_ilev.size());
-    for (int j = 0, N = coarsenBA.size(); j < N; ++j) {
+    for (int j = 0, N = static_cast<int>(coarsenBA.size()); j < N; ++j) {
       coarsenBA.set(
         j, interpolater.CoarseBox(grids_ilev[j], parent->refRatio(ilev - 1)));
     }

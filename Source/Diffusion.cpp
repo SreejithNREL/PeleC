@@ -62,8 +62,9 @@ PeleC::getMOLSrcTerm(
   */
 
   const int nCompTr = dComp_lambda + 1;
-  const int do_harmonic = 1; // TODO: parmparse this
   const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dx = geom.CellSizeArray();
+  const amrex::GpuArray<amrex::Real, AMREX_SPACEDIM> dxinv =
+    geom.InvCellSizeArray();
 
   amrex::Real dx1 = dx[0];
   for (int dir = 1; dir < AMREX_SPACEDIM; ++dir) {
@@ -106,22 +107,10 @@ PeleC::getMOLSrcTerm(
 #pragma omp parallel if (amrex::Gpu::notInLaunchRegion())
 #endif
   {
-    // amrex::IArrayBox bcMask[AMREX_SPACEDIM];
-
-    // int flag_nscbc_isAnyPerio = (geom.isAnyPeriodic()) ? 1 : 0;
-    // int flag_nscbc_perio[AMREX_SPACEDIM] = {0}; // For 3D, we will know which
-    // corners have a periodicity
-    // for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-    //   flag_nscbc_perio[dir] =
-    //     (amrex::DefaultGeometry().isPeriodic(dir)) ? 1 : 0;
-    // }
-    // const int* domain_lo = geom.Domain().loVect();
-    // const int* domain_hi = geom.Domain().hiVect();
-
     for (amrex::MFIter mfi(MOLSrcTerm, amrex::TilingIfNotGPU()); mfi.isValid();
          ++mfi) {
       const amrex::Box vbox = mfi.tilebox();
-      int ng = S.nGrow();
+      int ng = numGrow();
       const amrex::Box gbox = amrex::grow(vbox, ng);
       const amrex::Box cbox = amrex::grow(vbox, ng - 1);
       auto const& MOLSrc = MOLSrcTerm.array(mfi);
@@ -149,7 +138,9 @@ PeleC::getMOLSrcTerm(
 
       const int local_i = mfi.LocalIndex();
       const auto Ncut =
-        (!eb_in_domain) ? 0 : sv_eb_bndry_grad_stencil[local_i].size();
+        (!eb_in_domain)
+          ? 0
+          : static_cast<int>(sv_eb_bndry_grad_stencil[local_i].size());
       SparseData<amrex::Real, EBBndrySten> eb_flux_thdlocal;
       if (Ncut > 0) {
         eb_flux_thdlocal.define(sv_eb_bndry_grad_stencil[local_i], NVAR);
@@ -158,12 +149,9 @@ PeleC::getMOLSrcTerm(
         (Ncut > 0 ? sv_eb_bndry_geom[local_i].data() : nullptr);
 
       const int nqaux = NQAUX > 0 ? NQAUX : 1;
-      amrex::FArrayBox q(gbox, QVAR);
-      amrex::FArrayBox qaux(gbox, nqaux);
-      amrex::FArrayBox coeff_cc(gbox, nCompTr);
-      amrex::Elixir qeli = q.elixir();
-      amrex::Elixir qauxeli = qaux.elixir();
-      amrex::Elixir coefeli = coeff_cc.elixir();
+      amrex::FArrayBox q(gbox, QVAR, amrex::The_Async_Arena());
+      amrex::FArrayBox qaux(gbox, nqaux, amrex::The_Async_Arena());
+      amrex::FArrayBox coeff_cc(gbox, nCompTr, amrex::The_Async_Arena());
       auto const& sar = S.array(mfi);
       auto const& qar = q.array();
       auto const& qauxar = qaux.array();
@@ -186,7 +174,7 @@ PeleC::getMOLSrcTerm(
                 if (dir!=d) TestBox.grow(d,1);
               }
 
-              bcMask[dir].resize(TestBox,1);
+              bcMask[dir].resize(TestBox,1, amrex::The_Async_Arena());
               bcMask[dir].setVal(0);
             }
 
@@ -226,13 +214,13 @@ PeleC::getMOLSrcTerm(
         amrex::launch(gbox, [=] AMREX_GPU_DEVICE(amrex::Box const& tbx) {
           auto trans = pele::physics::PhysicsType::transport();
           trans.get_transport_coeffs(
-            tbx, qar_yin, qar_Tin, qar_rhoin, coe_rhoD, coe_mu, coe_xi,
-            coe_lambda, ltransparm);
+            tbx, qar_yin, qar_Tin, qar_rhoin, coe_rhoD,
+            amrex::Array4<amrex::Real>(), coe_mu, coe_xi, coe_lambda,
+            ltransparm);
         });
       }
 
       amrex::FArrayBox flux_ec[AMREX_SPACEDIM];
-      amrex::Elixir flux_eli[AMREX_SPACEDIM];
       const amrex::Box eboxes[AMREX_SPACEDIM] = {AMREX_D_DECL(
         amrex::surroundingNodes(cbox, 0), amrex::surroundingNodes(cbox, 1),
         amrex::surroundingNodes(cbox, 2))};
@@ -242,20 +230,46 @@ PeleC::getMOLSrcTerm(
         area_arr{{AMREX_D_DECL(
           area[0].array(mfi), area[1].array(mfi), area[2].array(mfi))}};
       for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-        flux_ec[dir].resize(eboxes[dir], NVAR);
-        flux_eli[dir] = flux_ec[dir].elixir();
+        flux_ec[dir].resize(eboxes[dir], NVAR, amrex::The_Async_Arena());
         flx[dir] = flux_ec[dir].array();
         setV(eboxes[dir], NVAR, flx[dir], 0);
       }
 
-      amrex::FArrayBox Dfab(cbox, NVAR);
-      amrex::Elixir Dfab_eli = Dfab.elixir();
+      amrex::FArrayBox Dfab(cbox, NVAR, amrex::The_Async_Arena());
       auto const& Dterm = Dfab.array();
       setV(cbox, NVAR, Dterm, 0.0);
+      auto flag_arr = flags.const_array(mfi);
 
-      pc_compute_diffusion_flux(
-        cbox, qar, coe_cc, flx, area_arr, dx, do_harmonic, typ, Ncut,
-        d_sv_eb_bndry_geom, flags.array(mfi));
+      {
+        // Compute Extensive diffusion fluxes for X, Y, Z
+        BL_PROFILE("PeleC::diffusion_flux()");
+        const bool l_transport_harmonic_mean = transport_harmonic_mean;
+        for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
+          if (
+            (typ == amrex::FabType::singlevalued) ||
+            (typ == amrex::FabType::regular)) {
+            amrex::ParallelFor(
+              eboxes[dir], [=] AMREX_GPU_DEVICE(int i, int j, int k) noexcept {
+                amrex::GpuArray<amrex::Real, dComp_lambda + 1> cf = {0.0};
+                for (int n = 0; n < static_cast<int>(cf.size()); n++) {
+                  pc_move_transcoefs_to_ec(
+                    AMREX_D_DECL(i, j, k), n, coe_cc, cf.data(), dir,
+                    l_transport_harmonic_mean);
+                }
+                if (typ == amrex::FabType::singlevalued) {
+                  pc_diffusion_flux_eb(
+                    i, j, k, qar, cf, flag_arr, area_arr[dir], flx[dir], dxinv,
+                    dir);
+                } else if (typ == amrex::FabType::regular) {
+                  pc_diffusion_flux(
+                    i, j, k, qar, cf, area_arr[dir], flx[dir], dxinv, dir);
+                }
+              });
+          } else if (typ == amrex::FabType::multivalued) {
+            amrex::Abort("multi-valued cells are not supported");
+          }
+        }
+      }
 
       // Compute flux divergence (1/Vol).Div(F.A)
       {
@@ -299,14 +313,14 @@ PeleC::getMOLSrcTerm(
       // Set extensive flux at embedded boundary, potentially
       // non-zero only for heat flux on isothermal boundaries,
       // and momentum fluxes at no-slip walls
-      const int nFlux = sv_eb_flux.empty() ? 0 : sv_eb_flux[local_i].numPts();
+      const auto nFlux = sv_eb_flux.empty() ? 0 : sv_eb_flux[local_i].numPts();
       if (typ == amrex::FabType::singlevalued && Ncut > 0) {
         eb_flux_thdlocal.setVal(0); // Default to Neumann for all fields
 
-        int Nvals = sv_eb_bcval[local_i].numPts();
+        const auto Nvals = sv_eb_bcval[local_i].numPts();
 
-        AMREX_ASSERT(static_cast<unsigned long>(Nvals) == Ncut);
-        AMREX_ASSERT(static_cast<unsigned long>(nFlux) == Ncut);
+        AMREX_ASSERT(Nvals == Ncut);
+        AMREX_ASSERT(nFlux == Ncut);
 
         if (eb_isothermal && (diffuse_temp || diffuse_enth)) {
           {
@@ -338,21 +352,18 @@ PeleC::getMOLSrcTerm(
       // diffusion fluxes.  Increment this with the divergence of the
       // face-centered hyperbloic fluxes.
       if (do_hydro && do_mol) {
-        // amrex::FArrayBox flatn(cbox, 1);
-        // amrex::Elixir flatn_eli;
-        // flatn_eli = flatn.elixir();
+        // amrex::FArrayBox flatn(cbox, 1, amrex::The_Async_Arena());
         // flatn.setVal(1.0); // Set flattening to 1.0
 
         // save off the diffusion source term and fluxes (don't want to filter
         // these)
         amrex::FArrayBox diffusion_flux[AMREX_SPACEDIM];
-        amrex::Elixir diffusion_flux_eli[AMREX_SPACEDIM];
         amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>
           diffusion_flux_arr;
         if (use_explicit_filter) {
           for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-            diffusion_flux[dir].resize(flux_ec[dir].box(), NVAR);
-            diffusion_flux_eli[dir] = diffusion_flux[dir].elixir();
+            diffusion_flux[dir].resize(
+              flux_ec[dir].box(), NVAR, amrex::The_Async_Arena());
             diffusion_flux_arr[dir] = diffusion_flux[dir].array();
             copy_array4(
               flux_ec[dir].box(), flux_ec[dir].nComp(), flx[dir],
@@ -375,12 +386,11 @@ PeleC::getMOLSrcTerm(
         if (use_explicit_filter) {
           // Get the hydro term
           amrex::FArrayBox hydro_flux[AMREX_SPACEDIM];
-          amrex::Elixir hydro_flux_eli[AMREX_SPACEDIM];
           amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM>
             hydro_flux_arr;
           for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-            hydro_flux[dir].resize(flux_ec[dir].box(), NVAR);
-            hydro_flux_eli[dir] = hydro_flux[dir].elixir();
+            hydro_flux[dir].resize(
+              flux_ec[dir].box(), NVAR, amrex::The_Async_Arena());
             hydro_flux_arr[dir] = hydro_flux[dir].array();
             lincomb_array4(
               flux_ec[dir].box(), Density, NVAR, flx[dir],
@@ -391,10 +401,8 @@ PeleC::getMOLSrcTerm(
           const amrex::Box fbox = amrex::grow(cbox, -nGrowF);
           for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
             const amrex::Box& bxtmp = amrex::surroundingNodes(fbox, dir);
-            amrex::FArrayBox filtered_hydro_flux;
-            filtered_hydro_flux.resize(bxtmp, NVAR);
-            amrex::Elixir filtered_hydro_flux_eli =
-              filtered_hydro_flux.elixir();
+            amrex::FArrayBox filtered_hydro_flux(
+              bxtmp, NVAR, amrex::The_Async_Arena());
             les_filter.apply_filter(
               bxtmp, hydro_flux[dir], filtered_hydro_flux, Density, NVAR);
 
@@ -440,9 +448,6 @@ PeleC::getMOLSrcTerm(
         amrex::FArrayBox dm_as_fine;
         amrex::FArrayBox fab_drho_as_crse;
         amrex::IArrayBox fab_rrflag_as_crse;
-        amrex::Elixir dm_as_fine_eli;
-        amrex::Elixir fab_drho_as_crse_eli;
-        amrex::Elixir fab_rrflag_as_crse_eli;
         if (typ == amrex::FabType::singlevalued) {
           // Interpolate fluxes from face centers to face centroids
           // Note that hybrid divergence and redistribution algorithms require
@@ -452,8 +457,8 @@ PeleC::getMOLSrcTerm(
           {
             BL_PROFILE("PeleC::pc_apply_face_stencil()");
             for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-              int Nsten = flux_interp_stencil[dir][local_i].size();
-              // int in_place = 1;
+              const auto Nsten =
+                static_cast<int>(flux_interp_stencil[dir][local_i].size());
               const amrex::Box valid_interped_flux_box =
                 amrex::Box(ebfluxbox).surroundingNodes(dir);
               if (Nsten > 0) {
@@ -484,16 +489,16 @@ PeleC::getMOLSrcTerm(
             vol *= geom.CellSize()[dir];
           }
 
-          dm_as_fine.resize(amrex::Box::TheUnitBox(), NVAR);
-          dm_as_fine_eli = dm_as_fine.elixir();
-          fab_drho_as_crse.resize(amrex::Box::TheUnitBox(), NVAR);
-          fab_drho_as_crse_eli = fab_drho_as_crse.elixir();
-          fab_rrflag_as_crse.resize(amrex::Box::TheUnitBox());
-          fab_rrflag_as_crse_eli = fab_rrflag_as_crse.elixir();
+          dm_as_fine.resize(
+            amrex::Box::TheUnitBox(), NVAR, amrex::The_Async_Arena());
+          fab_drho_as_crse.resize(
+            amrex::Box::TheUnitBox(), NVAR, amrex::The_Async_Arena());
+          fab_rrflag_as_crse.resize(
+            amrex::Box::TheUnitBox(), 1, amrex::The_Async_Arena());
           {
             if (fr_as_fine != nullptr) {
-              dm_as_fine.resize(amrex::grow(vbox, 1), NVAR);
-              dm_as_fine_eli = dm_as_fine.elixir();
+              dm_as_fine.resize(
+                amrex::grow(vbox, 1), NVAR, amrex::The_Async_Arena());
               dm_as_fine.setVal<amrex::RunOn::Device>(0.0);
             }
             if (Ncut > 0) {
@@ -518,11 +523,6 @@ PeleC::getMOLSrcTerm(
                   &((*areafrac[0])[mfi]), &((*areafrac[1])[mfi]),
                   &((*areafrac[2])[mfi]))},
                 amrex::RunOn::Device);
-              // if (AMREX_SPACEDIM <= 2) {
-              //   amrex::Print()
-              //     << "WARNING:Re redistribution crseadd for EB not tested "
-              //        "in 2D\n";
-              // }
             }
 
             if (fr_as_fine != nullptr) {
@@ -533,12 +533,6 @@ PeleC::getMOLSrcTerm(
                   &((*areafrac[0])[mfi]), &((*areafrac[1])[mfi]),
                   &((*areafrac[2])[mfi]))},
                 dm_as_fine, amrex::RunOn::Device);
-
-              // if (AMREX_SPACEDIM <= 2) {
-              //   amrex::Print()
-              //     << "WARNING:Re redistribution fineadd for EB not tested "
-              //        "in 2D\n";
-              // }
             }
           }
         } else if (typ != amrex::FabType::regular) { // Single valued if loop
@@ -555,14 +549,14 @@ PeleC::getMOLSrcTerm(
             });
         }
 
-        if (level < parent->finestLevel()) {
-          getFluxReg(level + 1).CrseAdd(
+        if ((level < parent->finestLevel()) && (fr_as_crse != nullptr)) {
+          fr_as_crse->CrseAdd(
             mfi, {{AMREX_D_DECL(&flux_ec[0], &flux_ec[1], &flux_ec[2])}},
             dxD.data(), dt, amrex::RunOn::Device);
         }
 
-        if (level > 0) {
-          getFluxReg(level).FineAdd(
+        if ((level > 0) && (fr_as_fine != nullptr)) {
+          fr_as_fine->FineAdd(
             mfi, {{AMREX_D_DECL(&flux_ec[0], &flux_ec[1], &flux_ec[2])}},
             dxD.data(), dt, amrex::RunOn::Device);
         }
@@ -602,19 +596,18 @@ PeleC::getMOLSrcTerm(
                      , auto fcz = facecent[2]->const_array(mfi););
         auto ccc = fact.getCentroid().const_array(mfi);
 
-        amrex::FArrayBox tmpfab(Dfab.box(), S.nComp());
+        amrex::FArrayBox tmpfab(
+          Dfab.box(), S.nComp(), amrex::The_Async_Arena());
         if (redistribution_type == "FluxRedist") {
           tmpfab.setVal<amrex::RunOn::Device>(1.0, tmpfab.box());
         }
-        amrex::Elixir tmpeli = tmpfab.elixir();
         amrex::Array4<amrex::Real> scratch = tmpfab.array();
 
-        amrex::FArrayBox Dterm_tmpfab(Dfab.box(), S.nComp());
-        amrex::Elixir Dterm_tmpeli = Dterm_tmpfab.elixir();
+        amrex::FArrayBox Dterm_tmpfab(
+          Dfab.box(), S.nComp(), amrex::The_Async_Arena());
         amrex::Array4<amrex::Real> Dterm_tmp = Dterm_tmpfab.array();
         copy_array4(Dfab.box(), NVAR, Dterm, Dterm_tmp);
 
-        auto flag_arr = flags.const_array(mfi);
         {
           BL_PROFILE("Redistribution::Apply()");
           Redistribution::Apply(

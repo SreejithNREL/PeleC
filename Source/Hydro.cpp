@@ -23,7 +23,7 @@ PeleC::construct_hydro_source(
       amrex::Print() << "... Computing hydro advance" << std::endl;
     }
 
-    AMREX_ASSERT(S.nGrow() == numGrow() + nGrowF);
+    AMREX_ASSERT(S.nGrow() >= numGrow() + nGrowF);
     sources_for_hydro.setVal(0.0);
     int ng = 0; // TODO: This is currently the largest ngrow of the source
                 // data...maybe this needs fixing?
@@ -56,11 +56,11 @@ PeleC::construct_hydro_source(
 
     std::array<amrex::Real, AMREX_SPACEDIM> dxD = {
       {AMREX_D_DECL(dx1, dx1, dx1)}};
-    const amrex::Real* dxDp = &(dxD[0]);
+    const amrex::Real* dxDp = dxD.data();
 
     amrex::Real courno = std::numeric_limits<amrex::Real>::lowest();
 
-    amrex::MultiFab& S_new = get_new_data(State_Type);
+    const amrex::MultiFab& S_new = get_new_data(State_Type);
 
     // note: the radiation consup currently does not fill these
     amrex::Real E_added_flux = 0.;
@@ -86,16 +86,8 @@ PeleC::construct_hydro_source(
     reduction(max:courno)
 #endif
     {
-      // amrex::IArrayBox bcMask[AMREX_SPACEDIM];
       amrex::Real cflLoc = std::numeric_limits<amrex::Real>::lowest();
       int is_finest_level = (level == finest_level) ? 1 : 0;
-      // int flag_nscbc_isAnyPerio = (geom.isAnyPeriodic()) ? 1 : 0;
-      // int flag_nscbc_perio[AMREX_SPACEDIM] = {0}; // For 3D, we will know
-      // which corners have a periodicity
-      // for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
-      //  flag_nscbc_perio[dir] =
-      //    (amrex::DefaultGeometry().isPeriodic(dir)) ? 1 : 0;
-      // }
 
       const int* domain_lo = geom.Domain().loVect();
       const int* domain_hi = geom.Domain().hiVect();
@@ -107,28 +99,20 @@ PeleC::construct_hydro_source(
         const amrex::Box& bx = mfi.tilebox();
         const amrex::Box& qbx = amrex::grow(bx, numGrow() + nGrowF);
         const amrex::Box& fbx = amrex::grow(bx, nGrowF);
-        // const int* lo = bx.loVect();
-        // const int* hi = bx.hiVect();
 
         amrex::GpuArray<amrex::FArrayBox, AMREX_SPACEDIM> flux;
-        amrex::Elixir flux_eli[AMREX_SPACEDIM];
         for (int dir = 0; dir < AMREX_SPACEDIM; ++dir) {
           const amrex::Box& efbx = surroundingNodes(fbx, dir);
-          flux[dir].resize(efbx, NVAR);
-          flux_eli[dir] = flux[dir].elixir();
+          flux[dir].resize(efbx, NVAR, amrex::The_Async_Arena());
         }
 
         auto const& s = S.array(mfi);
         auto const& hyd_src = hydro_source.array(mfi);
 
         // Resize Temporary Fabs
-        amrex::FArrayBox q(qbx, QVAR);
-        amrex::FArrayBox qaux(qbx, NQAUX);
-        amrex::FArrayBox src_q(qbx, QVAR);
-        // Use Elixir Construct to steal the Fabs metadata
-        amrex::Elixir qeli = q.elixir();
-        amrex::Elixir qauxeli = qaux.elixir();
-        amrex::Elixir src_qeli = src_q.elixir();
+        amrex::FArrayBox q(qbx, QVAR, amrex::The_Async_Arena());
+        amrex::FArrayBox qaux(qbx, NQAUX, amrex::The_Async_Arena());
+        amrex::FArrayBox src_q(qbx, QVAR, amrex::The_Async_Arena());
         // Get Arrays to pass to the gpu.
         auto const& qarr = q.array();
         auto const& qauxar = qaux.array();
@@ -160,7 +144,7 @@ PeleC::construct_hydro_source(
                 for(int d=0; d<AMREX_SPACEDIM; ++d) {
                   if (dir!=d) TestBox.grow(d,1);
                 }
-                bcMask[dir].resize(TestBox,1);
+                bcMask[dir].resize(TestBox,1, amrex::The_Async_Arena());
                 bcMask[dir].setVal(0);
               }
 
@@ -193,11 +177,12 @@ PeleC::construct_hydro_source(
             });
         }
 
-        amrex::FArrayBox pradial(amrex::Box::TheUnitBox(), 1);
+        amrex::FArrayBox pradial(
+          amrex::Box::TheUnitBox(), 1, amrex::The_Async_Arena());
         if (!amrex::DefaultGeometry().IsCartesian()) {
-          pradial.resize(amrex::surroundingNodes(bx, 0), 1);
+          pradial.resize(
+            amrex::surroundingNodes(bx, 0), 1, amrex::The_Async_Arena());
         }
-        amrex::Elixir pradial_eli = pradial.elixir();
 
         const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>
           flx_arr{
@@ -222,8 +207,8 @@ PeleC::construct_hydro_source(
           BL_PROFILE("PeleC::apply_filter()");
           for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
             const amrex::Box& bxtmp = amrex::surroundingNodes(bx, dir);
-            amrex::FArrayBox filtered_flux(bxtmp, NVAR);
-            amrex::Elixir filtered_flux_eli = filtered_flux.elixir();
+            amrex::FArrayBox filtered_flux(
+              bxtmp, NVAR, amrex::The_Async_Arena());
             les_filter.apply_filter(
               bxtmp, flux[dir], filtered_flux, Density, NVAR);
 
@@ -232,8 +217,8 @@ PeleC::construct_hydro_source(
               bxtmp, flux[dir].nComp(), filtered_flux.array(), flx_arr[dir]);
           }
 
-          amrex::FArrayBox filtered_source_out(bx, NVAR);
-          amrex::Elixir filtered_source_out_eli = filtered_source_out.elixir();
+          amrex::FArrayBox filtered_source_out(
+            bx, NVAR, amrex::The_Async_Arena());
           les_filter.apply_filter(
             bx, hydro_source[mfi], filtered_source_out, Density, NVAR);
 
@@ -246,7 +231,7 @@ PeleC::construct_hydro_source(
           BL_PROFILE("PeleC::reflux()");
           if (level < finest_level) {
             getFluxReg(level + 1).CrseAdd(
-              mfi, {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}}, dxDp,
+              mfi, {{AMREX_D_DECL(flux.data(), &(flux[1]), &(flux[2]))}}, dxDp,
               dt, amrex::RunOn::Device);
 
             if (!amrex::DefaultGeometry().IsCartesian()) {
@@ -256,7 +241,7 @@ PeleC::construct_hydro_source(
 
           if (level > 0) {
             getFluxReg(level).FineAdd(
-              mfi, {{AMREX_D_DECL(&(flux[0]), &(flux[1]), &(flux[2]))}}, dxDp,
+              mfi, {{AMREX_D_DECL(flux.data(), &(flux[1]), &(flux[2]))}}, dxDp,
               dt, amrex::RunOn::Device);
 
             if (!amrex::DefaultGeometry().IsCartesian()) {
@@ -340,8 +325,8 @@ pc_umdrv(
   const bool use_hybrid_weno,
   const int weno_scheme,
   const amrex::Real difmag,
-  const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM> flx,
-  const amrex::GpuArray<const amrex::Array4<const amrex::Real>, AMREX_SPACEDIM>
+  const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx,
+  const amrex::GpuArray<const amrex::Array4<const amrex::Real>, AMREX_SPACEDIM>&
     a,
   amrex::Array4<amrex::Real> const& vol,
   amrex::Real /*cflLoc*/)
@@ -349,20 +334,16 @@ pc_umdrv(
   // Set Up for Hydro Flux Calculations
   auto const& bxg2 = grow(bx, 2);
   amrex::FArrayBox qec[AMREX_SPACEDIM];
-  amrex::Elixir qec_eli[AMREX_SPACEDIM];
   for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
     const amrex::Box eboxes = amrex::surroundingNodes(bxg2, dir);
-    qec[dir].resize(eboxes, NGDNV);
-    qec_eli[dir] = qec[dir].elixir();
+    qec[dir].resize(eboxes, NGDNV, amrex::The_Async_Arena());
   }
   amrex::GpuArray<amrex::Array4<amrex::Real>, AMREX_SPACEDIM> qec_arr{
     {AMREX_D_DECL(qec[0].array(), qec[1].array(), qec[2].array())}};
 
   // Temporary FArrayBoxes
-  amrex::FArrayBox divu(bxg2, 1);
-  amrex::FArrayBox pdivu(bx, 1);
-  amrex::Elixir divueli = divu.elixir();
-  amrex::Elixir pdiveli = pdivu.elixir();
+  amrex::FArrayBox divu(bxg2, 1, amrex::The_Async_Arena());
+  amrex::FArrayBox pdivu(bx, 1, amrex::The_Async_Arena());
   auto const& divuarr = divu.array();
   auto const& pdivuarr = pdivu.array();
 
@@ -386,9 +367,6 @@ pc_umdrv(
       weno_scheme);
 #endif
   }
-  for (auto& dir : qec_eli) {
-    dir.clear();
-  }
 
   // divu
   AMREX_D_TERM(const amrex::Real dx0 = dx[0];, const amrex::Real dx1 = dx[1];
@@ -406,8 +384,8 @@ pc_consup(
   amrex::Box const& bx,
   amrex::Array4<const amrex::Real> const& u,
   amrex::Array4<amrex::Real> const& update,
-  const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM> flx,
-  const amrex::GpuArray<const amrex::Array4<const amrex::Real>, AMREX_SPACEDIM>
+  const amrex::GpuArray<const amrex::Array4<amrex::Real>, AMREX_SPACEDIM>& flx,
+  const amrex::GpuArray<const amrex::Array4<const amrex::Real>, AMREX_SPACEDIM>&
     a,
   amrex::Array4<const amrex::Real> const& vol,
   amrex::Array4<const amrex::Real> const& divu,

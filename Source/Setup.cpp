@@ -14,10 +14,21 @@ using namespace MASA;
 #include "IndexDefines.H"
 #include "prob.H"
 
+#ifdef PELEC_USE_SPRAY
+#include "SprayParticles.H"
+#endif
+
+#ifdef PELEC_USE_SOOT
+#include "SootModel.H"
+#endif
+
 ProbParmDevice* PeleC::d_prob_parm_device = nullptr;
 ProbParmDevice* PeleC::h_prob_parm_device = nullptr;
 ProbParmHost* PeleC::prob_parm_host = nullptr;
 TaggingParm* PeleC::tagging_parm = nullptr;
+#ifdef PELEC_USE_SOOT
+SootModel PeleC::soot_model;
+#endif
 
 // Components are:
 // Interior, Inflow, Outflow,  Symmetry,     SlipWall,     NoSlipWall, UserBC
@@ -140,6 +151,9 @@ PeleC::variableSetUp()
   d_prob_parm_device = static_cast<ProbParmDevice*>(
     amrex::The_Arena()->alloc(sizeof(ProbParmDevice)));
   trans_parms.allocate();
+  if (trans_parms.host_trans_parm().use_soret) {
+    amrex::Abort("PeleC does not support Soret effects yet.");
+  }
   turb_inflow.init(amrex::DefaultGeometry());
 
   // Get options, set phys_bc
@@ -153,7 +167,6 @@ PeleC::variableSetUp()
 #endif
 
   // Set number of state variables and pointers to components
-
   int cnt = 0;
   Density = cnt++;
   Xmom = cnt++;
@@ -168,8 +181,6 @@ PeleC::variableSetUp()
     cnt += NUM_ADV;
   }
 
-  // int dm = AMREX_SPACEDIM;
-
   if (NUM_SPECIES > 0) {
     FirstSpec = cnt;
     cnt += NUM_SPECIES; // NOLINT
@@ -182,40 +193,15 @@ PeleC::variableSetUp()
 
   if (NUM_LIN > 0) {
     FirstLin = cnt;
-    cnt += NUM_LIN;
+    cnt += NUM_LIN; // NOLINT
   }
 
-  // NUM_LIN variables are will be added by the specific models
-  // NVAR = cnt;
-
-  // const amrex::Real run_strt = amrex::ParallelDescriptor::second() ;
-  // Real run_stop = ParallelDescriptor::second() - run_strt;
-  // ParallelDescriptor::ReduceRealMax(run_stop,ParallelDescriptor::IOProcessorNumber());
-
-  // if (ParallelDescriptor::IOProcessor())
-  //    amrex::Print() << "\nTime in set_method_params: " << run_stop << '\n'
-  //    ;
-
-  // if (nscbc_adv == 1 && amrex::ParallelDescriptor::IOProcessor()) {
-  //  amrex::Print() << "Using Ghost-Cells Navier-Stokes Characteristic BCs
-  //  for
-  //  "
-  //                    "advection: nscbc_adv = "
-  //                 << nscbc_adv << '\n'
-  //                 << '\n';
-  //}
-
-  // if (nscbc_diff == 1 && amrex::ParallelDescriptor::IOProcessor()) {
-  //  amrex::Print() << "Using Ghost-Cells Navier-Stokes Characteristic BCs
-  //  for
-  //  "
-  //                    "diffusion: nscbc_diff = "
-  //                 << nscbc_diff << '\n'
-  //                 << '\n';
-  //}
-
-  // int coord_type = amrex::DefaultGeometry().Coord();
-
+#ifdef PELEC_USE_SOOT
+  // Set number of soot variables to be equal to the number of moments
+  // plus a variable for the weight of the delta function
+  NumSootVars = NUM_SOOT_MOMENTS + 1;
+  FirstSootVar = FirstLin;
+#endif
   amrex::MFInterpolater* interp;
 
   if (state_interp_order == 0) {
@@ -295,7 +281,7 @@ PeleC::variableSetUp()
 
   for (int i = 0; i < NUM_ADV; ++i) {
     char buf[64];
-    sprintf(buf, "rho_adv_%d", i);
+    snprintf(buf, 64, "rho_adv_%d", i);
     cnt++;
     set_scalar_bc(bc, phys_bc);
     bcs[cnt] = bc;
@@ -333,7 +319,7 @@ PeleC::variableSetUp()
 
     char* char_aux_names = new char[len + 1];
     for (int j = 0; j < len; j++) {
-      char_aux_names[j] = int_aux_names[j];
+      char_aux_names[j] = static_cast<char>(int_aux_names[j]);
     }
     char_aux_names[len] = '\0';
     aux_names.push_back(std::string(char_aux_names));
@@ -353,6 +339,26 @@ PeleC::variableSetUp()
     bcs[cnt] = bc;
     name[cnt] = "rho_" + aux_names[i];
   }
+
+#ifdef PELEC_USE_SOOT
+  // Set the soot model names
+  if (amrex::ParallelDescriptor::IOProcessor()) {
+    amrex::Print() << NumSootVars << " Soot Variables: " << std::endl;
+    for (int i = 0; i < NumSootVars; ++i) {
+      amrex::Print() << soot_model.sootVariableName(i) << ' ' << ' ';
+    }
+    amrex::Print() << std::endl;
+  }
+
+  for (int i = 0; i < NumSootVars; ++i) {
+    cnt++;
+    set_scalar_bc(bc, phys_bc);
+    bcs[cnt] = bc;
+    name[cnt] = soot_model.sootVariableName(i);
+  }
+  // Set soot indices
+  PeleC::setSootIndx();
+#endif
 
   amrex::StateDescriptor::BndryFunc bndryfunc1(pc_bcfill_hyp);
   bndryfunc1.setRunOnGPU(true);
@@ -388,6 +394,9 @@ PeleC::variableSetUp()
     amrex::StateDescriptor::BndryFunc(pc_nullfill));
 
   num_state_type = desc_lst.size();
+
+  // Get the level at which EB is generated
+  eb_max_lvl_gen = getEBMaxLevel();
 
   // DEFINE DERIVED QUANTITIES
 
@@ -521,25 +530,10 @@ PeleC::variableSetUp()
     amrex::DeriveRec::TheSameBox);
   derive_lst.addComponent("magmom", desc_lst, State_Type, Density, NVAR);
 
-#ifdef AMREX_PARTICLES
-  // We want a derived type that corresponds to the number of particles
-  // in each cell.  We only intend to use it in plotfiles for debugging
-  // purposes. We'll actually set the values in writePlotFile().
-  derive_lst.add(
-    "particle_count", amrex::IndexType::TheCellType(), 1, pc_dernull,
-    amrex::DeriveRec::TheSameBox);
-  derive_lst.addComponent("particle_count", desc_lst, State_Type, Density, 1);
-
-  derive_lst.add(
-    "total_particle_count", amrex::IndexType::TheCellType(), 1, pc_dernull,
-    amrex::DeriveRec::TheSameBox);
-  derive_lst.addComponent(
-    "total_particle_count", desc_lst, State_Type, Density, 1);
-
-  derive_lst.add(
-    "particle_density", amrex::IndexType::TheCellType(), 1, pc_dernull,
-    amrex::DeriveRec::TheSameBox);
-  derive_lst.addComponent("particle_density", desc_lst, State_Type, Density, 1);
+#ifdef PELEC_USE_SOOT
+  if (add_soot_src) {
+    addSootDerivePlotVars(derive_lst, desc_lst);
+  }
 #endif
 
   derive_lst.add(
@@ -551,6 +545,12 @@ PeleC::variableSetUp()
     "cv", amrex::IndexType::TheCellType(), 1, pc_dercv,
     amrex::DeriveRec::TheSameBox);
   derive_lst.addComponent("cv", desc_lst, State_Type, Density, NVAR);
+
+  amrex::Vector<std::string> var_names({AMREX_D_DECL("x", "y", "z")});
+  derive_lst.add(
+    "coordinates", amrex::IndexType::TheCellType(), AMREX_SPACEDIM, var_names,
+    pc_dercoord, amrex::DeriveRec::TheSameBox);
+  derive_lst.addComponent("coordinates", desc_lst, State_Type, Density, NVAR);
 
   derive_lst.add(
     "viscosity", amrex::IndexType::TheCellType(), 1, pc_derviscosity,
@@ -628,11 +628,50 @@ PeleC::variableSetUp()
   // Problem-specific derives
   add_problem_derives<ProblemDerives>(derive_lst, desc_lst);
 
+#ifdef PELEC_USE_SOOT
+  soot_model.define();
+#endif
+
   // Set list of active sources
   set_active_sources();
-#ifdef AMREX_PARTICLES
+#ifdef PELEC_USE_SPRAY
   defineParticles();
 #endif
+
+  read_tagging_params();
+
+  std::string pele_prefix = "pelec";
+  amrex::ParmParse pp(pele_prefix);
+  int n_diags = 0;
+  n_diags = pp.countval("diagnostics");
+  amrex::Vector<std::string> diags;
+  if (n_diags > 0) {
+    m_diagnostics.resize(n_diags);
+    diags.resize(n_diags);
+  }
+  for (int n = 0; n < n_diags; ++n) {
+    pp.get("diagnostics", diags[n], n);
+    std::string diag_prefix = pele_prefix + "." + diags[n];
+    amrex::ParmParse ppd(diag_prefix);
+    std::string diag_type;
+    ppd.get("type", diag_type);
+    m_diagnostics[n] = DiagBase::create(diag_type);
+    m_diagnostics[n]->init(diag_prefix, diags[n]);
+    m_diagnostics[n]->addVars(m_diagVars);
+  }
+
+  // Remove duplicates from m_diagVars and check that all the variables exists
+  std::sort(m_diagVars.begin(), m_diagVars.end());
+  auto last = std::unique(m_diagVars.begin(), m_diagVars.end());
+  m_diagVars.erase(last, m_diagVars.end());
+  int index = 0;
+  int scomp = 0;
+  for (auto& v : m_diagVars) {
+    bool itexists = derive_lst.canDerive(v) || isStateVariable(v, index, scomp);
+    if (!itexists) {
+      amrex::Abort("Field " + v + " is not available");
+    }
+  }
 }
 
 void
@@ -651,6 +690,9 @@ PeleC::variableCleanUp()
   delete h_prob_parm_device;
   amrex::The_Arena()->free(d_prob_parm_device);
   trans_parms.deallocate();
+#ifdef PELEC_USE_SPRAY
+  SprayParticleContainer::SprayCleanUp();
+#endif
 }
 
 void
@@ -668,6 +710,10 @@ PeleC::set_active_sources()
   // optional forcing source
   if (add_forcing_src) {
     src_list.push_back(forcing_src);
+  }
+
+  if (add_soot_src) {
+    src_list.push_back(soot_src);
   }
 
   if (do_spray_particles) {

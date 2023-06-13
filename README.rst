@@ -1,16 +1,12 @@
-PeleC 
------
-*A compressible AMR combustion code*
+PeleC: An adaptive mesh refinement solver for compressible reacting flows
+-------------------------------------------------------------------------
 
-`PeleC` is an adaptive-mesh compressible hydrodynamics code for reacting
-flows.
-
-`Documentation <https://amrex-combustion.github.io/PeleC/>`_ | `Nightly Test Results <https://my.cdash.org/index.php?project=PeleC>`_
+`Documentation <https://amrex-combustion.github.io/PeleC/>`_ | `Nightly Test Results <https://my.cdash.org/index.php?project=PeleC>`_ | `Citation <https://doi.org/10.1177/10943420221121151>`_
 
 Getting Started
 ~~~~~~~~~~~~~~~
 
-* To compile and run the `Pele` suite of codes, one needs a C++ compiler that supports the C++14 standard.  A hierarchical strategy for parallelism is supported, based MPI + OpenMP, or MPI + CUDA.  The codes work with all major MPI and OpenMP implementations.  The codes should build and run with no modifications to the `make` system if using a Linux system with the GNU compilers, version 4.9.4 and above.
+* To compile and run `PeleC`, one needs a C++ compiler that supports the C++17 standard.  A hierarchical strategy for parallelism is supported, based on MPI, MPI + OpenMP, or MPI + GPU (CUDA/HIP/DPC++).  The code should work with all major MPI and OpenMP implementations.  PeleC should build and run with no modifications to the `make` system if using a Linux system with the GNU compilers, version 7 and above.  CMake, although used mostly for testing, is also an option for building the code.
 
 To build `PeleC` and run a sample 3D flame problem:
 
@@ -18,12 +14,12 @@ To build `PeleC` and run a sample 3D flame problem:
 
     git clone --recursive git@github.com:AMReX-Combustion/PeleC.git
     cd PeleC/Exec/RegTests/PMF
-    make TPL && make -j
+    make TPLrealclean && make realclean && make TPL && make -j
     ./Pele3d.xxx.yyy.ex example.inp
 
 * Notes
 
-   A. In the exec line above, xxx.yyy is a tag identifying your compiler and various build options, and will vary across pltaform.  (Note that GNU compilers must be at least 4.8.4, and MPI should be at least version 3).
+   A. In the exec line above, xxx.yyy is a tag identifying your compiler and various build options, and will vary across pltaform.  (Note that GNU compilers must be at least version 7, and MPI should be at least of standard version 3).
    B. The example is 3D premixed flame, flowing vertically upward through the domain with no gravity. The lateral boundaries are periodic.  A detailed hydrogen model is used.  The solution is initialized with a wrinkled (perturbed) 2D steady flame solution computed using the PREMIX code.  Two levels of solution-adaptive refinement are automatically triggered by the presence of the flame intermediate, HO2.
    C. In addition to informative output to the terminal, periodic plotfiles are written in the run folder.  These may be viewed with CCSE's Amrvis (<https://ccse.lbl.gov/Downloads/downloadAmrvis.html>) or Vis-It (<http://vis.lbl.gov/NERSC/Software/visit/>):
 
@@ -94,6 +90,39 @@ are several `primers <http://thomas-cokelaer.info/tutorials/sphinx/rest_syntax.h
 available to get started. One gotcha is that indentation matters.
 
     cd Docs && mkdir build && cd build && cmake .. && make
+
+
+Citation
+~~~~~~~~
+
+To cite the PeleC software and refer to its computational performance, use the following `journal article <https://doi.org/10.1177/10943420221121151>`_::
+
+    @article{PeleC_IJHPCA,
+      author = {Marc T {Henry de Frahan} and Jon S Rood and Marc S Day and Hariswaran Sitaraman and Shashank Yellapantula and Bruce A Perry and Ray W Grout and Ann Almgren and Weiqun Zhang and John B Bell and Jacqueline H Chen},
+      title = {{PeleC: An adaptive mesh refinement solver for compressible reacting flows}},
+      journal = {The International Journal of High Performance Computing Applications},
+      volume = {0},
+      number = {0},
+      pages = {10943420221121151},
+      year = {2022},
+      doi = {10.1177/10943420221121151},
+      url = {https://doi.org/10.1177/10943420221121151}
+    }
+
+Additionally, to cite the application of PeleC to compressible reacting flows, use the following `Combustion and Flame journal article <https://doi.org/10.1016/j.combustflame.2021.111531>`_::
+
+  @article{Sitaraman2021,
+    author = {Hariswaran Sitaraman and Shashank Yellapantula and Marc T. {Henry de Frahan} and Bruce Perry and Jon Rood and Ray Grout and Marc Day}
+    title = {Adaptive mesh based combustion simulations of direct fuel injection effects in a supersonic cavity flame-holder},
+    journal = {Combustion and Flame},
+    volume = {232},
+    pages = {111531},
+    year = {2021},
+    issn = {0010-2180},
+    doi = {https://doi.org/10.1016/j.combustflame.2021.111531},
+    url = {https://www.sciencedirect.com/science/article/pii/S0010218021002741},
+  }
+
 
 Acknowledgment
 ~~~~~~~~~~~~~~

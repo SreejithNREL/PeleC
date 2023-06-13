@@ -74,8 +74,11 @@ weno_scheme                  int           1
 nscbc_adv                   bool          true
 nscbc_diff                  bool          false
 
-# if true, define an additional source term
+# if true, define an external source term
 add_ext_src                 bool           false
+
+# external source term value
+external_forcing       dim_array           0.0
 
 # if true, define an additional forcing term
 add_forcing_src             bool           false
@@ -103,12 +106,6 @@ plm_iorder                   int           2
 
 # Lax Friedrich's flux
 use_laxf_flux               bool           false
-
-# which Riemann solver do we use:
-# 0: Colella, Glaz, \& Ferguson (a two-shock solver);
-# 1: Colella \& Glaz (a two-shock solver)
-# 2: HLLC
-riemann_solver               int           0
 
 # flatten the reconstructed profiles around shocks to prevent them
 # from becoming too thin
@@ -164,6 +161,9 @@ diffuse_spec                  bool         false
 
 # flag for diffusion for velocity
 diffuse_vel                   bool         false
+
+# flag for harmonic averaging of transport coefficients to the face
+transport_harmonic_mean       bool         true
 
 #-----------------------------------------------------------------------------
 # category: large eddy simulation

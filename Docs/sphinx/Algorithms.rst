@@ -87,16 +87,18 @@ The actual implementation in PeleC is described in the paper `Motheau and Wakefi
 and the following description is taken from that paper. Note that the algorithm is presented here in 1D
 for simplicity, but can be trivially extended to 2D and 3D. 
 
-Note also that the hybrid PPM/WENO method is described in the aforementioned paper. This hybrid strategy presents far better 
-results in terms of capture of turbulent spectra rather than the other PPM methods. When ``ppm_type = 3`` is chosen, the WENO reconstruction
-method can be selected with ``weno_variant``:
+Note also that the hybrid PPM/WENO method is described in the
+aforementioned paper. This hybrid strategy presents far better results
+in terms of capture of turbulent spectra rather than the other PPM
+methods. When ``ppm_type = 1`` and `use_hybrid_weno = true` is used, the
+WENO reconstruction method can be selected with ``weno_scheme``:
 
-* ``weno_variant = 0`` is the classical 5th order WENO-JS of Jiang and Shu [JCP 1996].
-* ``weno_variant = 1`` is the 5th order WENO-Z method of Borges et al. [JCP 2008].
-* ``weno_variant = 2`` is the 7th order WENO-Z.
-* ``weno_variant = 3`` is the 3rd order WENO-Z.
+* ``weno_scheme = 0`` is the classical 5th order WENO-JS of Jiang and Shu [JCP 1996].
+* ``weno_scheme = 1`` is the 5th order WENO-Z method of Borges et al. [JCP 2008].
+* ``weno_scheme = 2`` is the 7th order WENO-Z.
+* ``weno_scheme = 3`` is the 3rd order WENO-Z.
 
-By default, ``weno_variant = 1`` is selected.
+By default, ``weno_scheme = 1`` is selected and `use_hybrid_weno = false`.
 
 
 System of primitive variables
@@ -230,6 +232,47 @@ Then the flattening limiter is imposed as follows:
   
 
 where :math:`\chi_i` is a flattening coefficient computed from the local pressure, and its evaluation is presented below.
+
+A non-dimensional shock resolution parameter :math:`\beta_{x,ijk}` is constructed in cell :math:`ijk` according to the equation given below.
+
+.. math::
+
+  \beta_{x,ijk} = \frac{|P_{i+1,j,k} - P_{i-1,j,k}|}{|P_{i+2,j,k}-P_{i-2,j,k}|}
+
+If :math:`\beta_{x,ijk}` is small, then any discontinuity is assumed to be well resolved. If :math:`\beta_{x,ijk}` is 0.5 then the pressure :math:`P` is linear across four consecutive cells in the i-th direction.
+A minimum value of :math:`\tilde \chi_{x,i,j,k}` is now calculated using two additional parameters :math:`a_0` and :math:`a_1` as,
+
+.. math::
+	\tilde \chi_{x,i,j,k}^{min} = max(0,min(1,\frac{a_1-\beta}{a_1-a_0}))
+
+The values of :math:`a_0` and :math:`a_1` are fixed as :math:`0.75` and :math:`0.85` respectively.
+
+The flattening parameter :math:`\tilde \chi_{x,ijk}` is now defined as,
+
+.. math::
+	\tilde \chi_{x,ijk} =\begin{cases}
+    max(\tilde \chi_{x,i,j,k}^{min},min(1,\frac{Z_1-Z_{x,ijk}}{Z_1-Z_0}), & \text{if $q_{x,i+1,j,k}<q_{x,i-1,j,k}$}.\\
+    1, & \text{otherwise}.
+  \end{cases}
+
+with the non-dimensional shock strength parameter :math:`Z_{x,ijk}` defined as,
+
+.. math::
+	Z_{x,ijk} = \frac{|P_{i+1,j,k} - P_{i-1,j,k}|}{\rho c^2}
+	
+For the case of three-dimensional flows, the limiter :math:`\chi_{ijk}` is then computed using the equation given below,
+
+.. math::
+	\chi_{ijk} = min(\tilde \chi_{x,i-1,j,k},\tilde \chi_{x,i,j,k},\tilde \chi_{x,i+1,j,k},\\
+	 \tilde \chi_{y,i,j-1,k},\tilde \chi_{y,i,j,k},\tilde \chi_{y,i,j+1,k},\tilde \chi_{z,i,j,k-1},\tilde \chi_{z,i,j,k}, \tilde \chi_{z,i,j,k+1}),
+	
+	
+  
+  
+  
+  
+  
+
 
 Finally, the monotonization is performed with the following procedure:
 
@@ -512,9 +555,13 @@ The mixture-averaged transport coefficients discussed above (:math:`\mu`, :math:
 
 The following choices are currently implemented in `PeleC`
 
-* The viscosity, :math:`\mu`, is estimated based <something>
+* The viscosity, :math:`\mu`, is estimated based on an empirical mixture formula (with :math:`\alpha = 6`):
 
-* The conductivity, :math:`\lambda`, is based on an empirical mixture formula (with :math:`\alpha = 1/4`):
+.. math::
+
+    \mu = \Big( \sum_m X_m (\mu_m)^{\alpha} \Big)^{1/\alpha}
+    
+* The conductivity, :math:`\lambda`, is also calculated using a similar formula as that :math:`\mu` but with :math:`\alpha = 1/4`:
 
 .. math::
 

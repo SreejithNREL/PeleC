@@ -23,8 +23,7 @@
 #include "turbinflow.H"
 #include "SparseData.H"
 #include "EBStencilTypes.H"
-
-#define UserBC 6
+#include "DiagBase.H"
 
 enum StateType { State_Type = 0, Reactions_Type, Work_Estimate_Type };
 
@@ -36,28 +35,18 @@ enum sources {
   spray_src,
   diff_src,
   les_src,
+  soot_src,
 #ifdef PELEC_USE_MASA
   mms_src,
 #endif
   num_src
 };
 
-/*
-static amrex::Box
-the_same_box(const amrex::Box& b)
-{
-  return b;
-}
-
-static amrex::Box
-grow_box_by_one(const amrex::Box& b)
-{
-  return amrex::grow(b, 1);
-}
-*/
-
 // Forward declarations
-#ifdef PELEC_SPRAY
+#ifdef PELEC_USE_SOOT
+class SootModel;
+#endif
+#ifdef PELEC_USE_SPRAY
 class SprayParticleContainer;
 #endif
 
@@ -125,10 +114,10 @@ public:
   // Initialize grid data at problem start-up.
   void initData() override;
 
-#ifdef PELEC_SPRAY
+#ifdef PELEC_USE_SPRAY
 
-  // Read particle-related inputs
-  static void readParticleParams();
+  // Read spray related inputs
+  static void readSprayParams();
 
   // Define particle related variables
   static void defineParticles();
@@ -136,34 +125,66 @@ public:
   // Initialize particle locations and velocities (and strengths if relevant)
   void initParticles();
 
-  // Timestamp particles
-  void particleTimestamp(int ngrow);
-
-  // Default verbosity of Particle class
-  static int particle_verbose;
+  // Create relevant particle data
+  void createDataParticles();
 
   // How to initialize at restart
-  void particlePostRestart(
-    const std::string& restart_file, bool is_checkpoint = true);
+  void postRestartParticles();
+
+  // Post timestep particle functions
+  void postTimeStepParticles(int iteration);
+
+  // Post init for spray particles
+  void postInitParticles();
 
   // Redistribute
-  virtual void particleRedistribute(
-    int lbase = 0, int nGrow = 0, int local = 0, bool init_part = false);
+  void particle_redistribute(int lbase = 0, bool init_part = false) override;
+
+  // Setup ghost and virtual particles and do moveKickDrift
+  void particleMKD(
+    amrex::Real time,
+    amrex::Real dt,
+    int sub_iteration,
+    int sub_ncycle,
+    int amr_ncycle);
+
+  // Do the moveKick for active and ghost particles
+  void particleMK(
+    amrex::Real time,
+    amrex::Real dt,
+    int sub_iteration,
+    int sub_ncycle,
+    int amr_ncycle);
 
   // Setup virtual particles if necessary
-  void setupVirtualParticles();
+  static void setupVirtualParticles(const int level, const int finest_level);
 
   // Remove virtual particles if necessary
-  void removeVirtualParticles();
+  static void removeVirtualParticles(const int level);
 
   // Setup ghost particles (for finer levels) if necessary
-  void setupGhostParticles(int ngrow);
+  static void
+  setupGhostParticles(const int level, const int finest_level, const int ngrow);
 
   // Remove ghost particles (for this level) if necessary
-  void removeGhostParticles();
+  static void removeGhostParticles(const int level);
 
   // Time step control based on particles
-  void particleEstTimeStep(amrex::Real& est_dt);
+  void estTimeStepParticles(amrex::Real& est_dt);
+
+  // Initialize the temporary spray source
+  void defineSpraySource(int amr_ncycle);
+  amrex::MultiFab tmp_spray_source;
+
+  // Determine the number of ghost cells for the state MF
+  int sprayStateGhosts(int amr_ncycle);
+
+  // Number of source terms in temporary spray data
+  static int num_spray_src;
+
+  static std::unique_ptr<SprayParticleContainer> SprayPC;
+  static std::unique_ptr<SprayParticleContainer> VirtPC;
+  static std::unique_ptr<SprayParticleContainer> GhostPC;
 #endif
 
   // Get problem metrics.
@@ -292,7 +313,7 @@ public:
     amrex::Real time,
     amrex::Real dt,
     const amrex::MultiFab& state_old,
-    const amrex::MultiFab& S_new,
+    const amrex::MultiFab& state_new,
     amrex::MultiFab& ext_src,
     int ng);
 
@@ -305,6 +326,29 @@ public:
     const amrex::MultiFab& state_new,
     amrex::MultiFab& forcing_src,
     int ng);
+
+  static bool add_soot_src;
+#ifdef PELEC_USE_SOOT
+  static void setSootIndx();
+
+  static void addSootDerivePlotVars(
+    amrex::DeriveList& derive_lst, const amrex::DescriptorList& desc_lst);
+
+  void construct_old_soot_source(amrex::Real time, amrex::Real dt);
+
+  void construct_new_soot_source(amrex::Real time, amrex::Real dt);
+
+  static void fill_soot_source(
+    amrex::Real time,
+    amrex::Real dt,
+    amrex::MultiFab& state,
+    amrex::MultiFab& soot_src,
+    int ng);
+
+  static void clipSootMoments(amrex::MultiFab& S_new, const int ng);
+
+  static bool plot_soot;
+#endif
 
 #ifdef PELEC_USE_MASA
   void construct_old_mms_source(amrex::Real time);
@@ -503,13 +547,15 @@ public:
     const int* bcrec,
     const int level);
 
-  // static int NVAR;
   static int Density, Xmom, Ymom, Zmom, Eden, Eint, Temp;
 
   static int FirstAdv;
   static int FirstSpec;
   static int FirstAux;
   static int FirstLin;
+
+  /// Index locations for soot modeling components
+  static int FirstSootVar, NumSootVars;
 
   // This MultiFab is on the coarser level.  This is useful for the coarser
   // level to mask out the finer level.  We only build this when it is needed.
@@ -520,11 +566,12 @@ public:
 
   static bool eb_in_domain;
 
-  amrex::EBFluxRegister flux_reg;
-  amrex::EBFluxRegister& getFluxReg();
+  std::unique_ptr<amrex::EBFluxRegister> flux_reg;
+  amrex::EBFluxRegister& getFluxReg() const;
   amrex::EBFluxRegister& getFluxReg(int lev);
 
   static bool ebInitialized();
+  static int getEBMaxLevel();
 
   void InitialRedistribution(
     const amrex::Real time,
@@ -542,6 +589,14 @@ public:
     pele::physics::PhysicsType::transport_type>
     trans_parms;
   static pele::physics::turbinflow::TurbInflow turb_inflow;
+
+  // A set of runtime diagnostics from PelePhysics lib
+  static amrex::Vector<std::unique_ptr<DiagBase>> m_diagnostics;
+  static amrex::Vector<std::string> m_diagVars;
+
+#ifdef PELEC_USE_SOOT
+  static SootModel soot_model;
+#endif
 
 protected:
   amrex::iMultiFab level_mask;
@@ -614,7 +669,6 @@ protected:
   amrex::MultiFab area[AMREX_SPACEDIM];
   amrex::MultiFab dLogArea[1];
   amrex::Vector<amrex::Vector<amrex::Real>> radius;
-  // int m_ngrow;
 
   // Static data members.
 #include "pelec_params.H"
@@ -658,18 +712,11 @@ protected:
   amrex::MultiFab mms_source;
 #endif
 
-  // bool FillPatchedOldState_ok;
-
   // There can be only one Diffusion object, it covers all levels:
   static class Diffusion* diffusion;
 
   // Do spray particles
   static bool do_spray_particles;
-#ifdef PELEC_SPRAY
-  static SprayParticleContainer* theSprayPC();
-  static SprayParticleContainer* theVirtPC();
-  static SprayParticleContainer* theGhostPC();
-#endif
 
   static int num_state_type;
 
@@ -683,12 +730,14 @@ protected:
   static int reset_typical_vals_int;
   static amrex::Vector<amrex::Real> typical_values_chem_usr;
 
-  // problem-specific includes
-#include <Problem.H>
+  void problem_post_timestep();
+  void problem_post_restart();
+  void problem_post_init();
 
   static amrex::GpuArray<amrex::Real, NVAR> body_state;
   static bool body_state_set;
   static bool eb_initialized;
+  static int eb_max_lvl_gen;
 
   amrex::MultiFab vfrac;
 
@@ -797,9 +846,7 @@ pc_check_initial_species(
   for (int n = 0; n < NUM_SPECIES; n++) {
     spec_sum = spec_sum + Sfab(i, j, k, UFS + n);
   }
-  if (
-    amrex::Math::abs(Sfab(i, j, k, URHO) - spec_sum) >
-    1.e-8 * Sfab(i, j, k, URHO)) {
+  if (std::abs(Sfab(i, j, k, URHO) - spec_sum) > 1.e-8 * Sfab(i, j, k, URHO)) {
     // print *,'Sum of (rho X)_i vs rho at (i,j,k):
     // ',i,j,k,spec_sum,state(i,j,k,URHO)
     amrex::Abort("Error:: Failed check of initial species summing to 1");
@@ -808,9 +855,9 @@ pc_check_initial_species(
 
 AMREX_FORCE_INLINE
 amrex::EBFluxRegister&
-PeleC::getFluxReg()
+PeleC::getFluxReg() const
 {
-  return flux_reg;
+  return *flux_reg;
 }
 
 AMREX_FORCE_INLINE

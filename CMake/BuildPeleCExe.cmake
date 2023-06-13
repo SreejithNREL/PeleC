@@ -5,7 +5,8 @@ function(build_pelec_exe pelec_exe_name pelec_lib_name)
   add_executable(${pelec_exe_name} "")
 
   if(CLANG_TIDY_EXE)
-    set_target_properties(${pelec_exe_name} PROPERTIES CXX_CLANG_TIDY ${CLANG_TIDY_EXE})
+    set_target_properties(${pelec_exe_name} PROPERTIES CXX_CLANG_TIDY 
+                          "${CLANG_TIDY_EXE};--config-file=${CMAKE_SOURCE_DIR}/.clang-tidy")
   endif()
 
   target_sources(${pelec_exe_name}
@@ -21,6 +22,52 @@ function(build_pelec_exe pelec_exe_name pelec_lib_name)
   target_include_directories(${pelec_exe_name} PRIVATE ${CMAKE_BINARY_DIR})
   target_include_directories(${pelec_exe_name} PRIVATE ${CMAKE_SOURCE_DIR}/Source/Params/param_includes)
 
+  # Set PeleMP flags
+  set(PELEMP_SRC_DIR ${CMAKE_SOURCE_DIR}/Submodules/PeleMP/Source)
+  if(PELEC_ENABLE_AMREX_PARTICLES AND PELEMP_SPRAY_FUEL_NUM GREATER 0)
+    target_compile_definitions(${pelec_exe_name} PRIVATE PELEC_USE_SPRAY)
+    target_compile_definitions(${pelec_exe_name} PRIVATE SPRAY_FUEL_NUM=${PELEMP_SPRAY_FUEL_NUM})
+    target_sources(${pelec_exe_name} PRIVATE
+	           SprayParticlesInitInsert.cpp
+                   ${SRC_DIR}/Particle.cpp
+                   ${PELEMP_SRC_DIR}/PP_Spray/SprayParticles.cpp
+                   ${PELEMP_SRC_DIR}/PP_Spray/SprayParticles.H
+                   ${PELEMP_SRC_DIR}/PP_Spray/SprayFuelData.H
+                   ${PELEMP_SRC_DIR}/PP_Spray/SprayInterpolation.H
+                   ${PELEMP_SRC_DIR}/PP_Spray/Drag.H
+                   ${PELEMP_SRC_DIR}/PP_Spray/SprayInjection.H
+                   ${PELEMP_SRC_DIR}/PP_Spray/SpraySetup.cpp
+                   ${PELEMP_SRC_DIR}/PP_Spray/SprayDerive.cpp
+                   ${PELEMP_SRC_DIR}/PP_Spray/SprayJet.H
+                   ${PELEMP_SRC_DIR}/PP_Spray/SprayJet.cpp
+                   ${PELEMP_SRC_DIR}/PP_Spray/SprayIO.cpp
+                   ${PELEMP_SRC_DIR}/PP_Spray/WallFunctions.H
+                   ${PELEMP_SRC_DIR}/PP_Spray/Distribution/DistBase.H
+                   ${PELEMP_SRC_DIR}/PP_Spray/Distribution/Distributions.H
+                   ${PELEMP_SRC_DIR}/PP_Spray/Distribution/Distributions.cpp)
+    target_include_directories(${pelec_exe_name} PRIVATE ${PELEMP_SRC_DIR}/PP_Spray)
+    target_include_directories(${pelec_exe_name} PRIVATE ${PELEMP_SRC_DIR}/PP_Spray/Distribution)
+  endif()
+  if(PELEC_ENABLE_SOOT)
+    target_compile_definitions(${pelec_exe_name} PRIVATE PELEC_USE_SOOT)
+    target_compile_definitions(${pelec_exe_name} PRIVATE NUM_SOOT_MOMENTS=${PELEMP_NUM_SOOT_MOMENTS})
+    set(SOOT_MOMENTS_VALUES 3 6)
+    if(NOT PELEMP_NUM_SOOT_MOMENTS IN_LIST SOOT_MOMENTS_VALUES)
+      message(FATAL_ERROR "NUM_SOOT_MOMENTS must be either 3 or 6")
+    endif()
+    target_sources(${pelec_exe_name} PRIVATE
+                   ${SRC_DIR}/Soot.cpp
+                   ${PELEMP_SRC_DIR}/Soot_Models/SootModel.cpp
+                   ${PELEMP_SRC_DIR}/Soot_Models/SootModel_react.cpp
+                   ${PELEMP_SRC_DIR}/Soot_Models/SootModel_derive.cpp
+                   ${PELEMP_SRC_DIR}/Soot_Models/Constants_Soot.H
+                   ${PELEMP_SRC_DIR}/Soot_Models/SootData.H
+                   ${PELEMP_SRC_DIR}/Soot_Models/SootReactions.H
+                   ${PELEMP_SRC_DIR}/Soot_Models/SootModel.H
+                   ${PELEMP_SRC_DIR}/Soot_Models/SootModel_derive.H)
+    target_include_directories(${pelec_exe_name} PRIVATE ${PELEMP_SRC_DIR}/Soot_Models)
+  endif()
+
   target_sources(${pelec_exe_name}
      PRIVATE
        ${SRC_DIR}/Advance.cpp
@@ -30,7 +77,6 @@ function(build_pelec_exe pelec_exe_name pelec_lib_name)
        ${SRC_DIR}/Derive.H
        ${SRC_DIR}/Derive.cpp
        ${SRC_DIR}/Diffterm.H
-       ${SRC_DIR}/Diffterm.cpp
        ${SRC_DIR}/Diffusion.H
        ${SRC_DIR}/Diffusion.cpp
        ${SRC_DIR}/EB.H
@@ -41,7 +87,6 @@ function(build_pelec_exe pelec_exe_name pelec_lib_name)
        ${SRC_DIR}/Filter.cpp
        ${SRC_DIR}/Forcing.cpp
        ${SRC_DIR}/GradUtil.H
-       ${SRC_DIR}/GradUtil.cpp
        ${SRC_DIR}/Hydro.H
        ${SRC_DIR}/Hydro.cpp
        ${SRC_DIR}/Geometry.H
@@ -59,12 +104,10 @@ function(build_pelec_exe pelec_exe_name pelec_lib_name)
        ${SRC_DIR}/LES.cpp
        ${SRC_DIR}/MOL.H
        ${SRC_DIR}/MOL.cpp
-       ${SRC_DIR}/Particle.cpp
        ${SRC_DIR}/PeleC.H
        ${SRC_DIR}/PeleC.cpp
        ${SRC_DIR}/PeleCAmr.H
        ${SRC_DIR}/PeleCAmr.cpp
-       ${SRC_DIR}/Problem.H
        ${SRC_DIR}/ProblemDerive.H
        ${SRC_DIR}/React.cpp
        ${SRC_DIR}/Riemann.H
@@ -80,7 +123,15 @@ function(build_pelec_exe pelec_exe_name pelec_lib_name)
        ${SRC_DIR}/Utilities.cpp
        ${SRC_DIR}/WENO.H
   )
-  
+
+  if(PELEC_ENABLE_ASCENT)
+    target_sources(${pelec_exe_name}
+      PRIVATE
+        ${SRC_DIR}/PeleAscent.H
+        ${SRC_DIR}/PeleAscent.cpp
+    )
+  endif()
+
   if(PELEC_ENABLE_MASA)
     target_compile_definitions(${pelec_exe_name} PRIVATE PELEC_USE_MASA)
     target_sources(${pelec_exe_name} PRIVATE ${SRC_DIR}/MMS.cpp)

@@ -14,7 +14,7 @@ Also, any entry that can be specified in the inputs file can also be specified o
 
 ::
 
-	mpirun -np 64 ./Pele2d.gnu.DEBUG.MPI.ex inputs amr.restart=sod_x_chk0030 pelec.riemann_solver=3
+	mpirun -np 64 ./Pele2d.gnu.DEBUG.MPI.ex inputs amr.restart=sod_x_chk0030
 
 The available options are divided into groups: those that control primarily AMReX are prefaced with `amr.` while those that are specific to Pele are prefaced with `pelec.`.
 
@@ -24,11 +24,18 @@ These parameters, once read, are available in the `PeleC` object for use from c+
 ::
 
     # ------------------  INPUTS TO MAIN PROGRAM  -------------------
-    #absolute stop time for the simulation
+    #Stopping criteria: at least one must be specified, simulation
+    #will stop when the first is met.
+
+    #absolute stop time (s) for the simulation
     stop_time = 6 
 
     #maximum number of time steps at base AMR level
-    max_step = 30 
+    max_step = 30
+
+    #maximum wall time (hr) after which simulation will be stopped
+    max_wall_time = 1.0
+
     # ---------------------------------------------------------------
     
     #------------------------
@@ -54,11 +61,6 @@ These parameters, once read, are available in the `PeleC` object for use from c+
     # ---------------------------------------------------------------
     PeleC specific inputs
     # ---------------------------------------------------------------
-
-    # 0: Collela, Glaz and Ferguson (default)
-    # 1: Collela and Glaz  
-    # 2: HLLC
-    pelec.riemann_solver    = 0     
 
     # >>>>>>>>>>>>>  BC KEYWORDS <<<<<<<<<<<<<<<<<<<<<<
     # Interior, UserBC, Symmetry, SlipWall, NoSlipWall
@@ -220,7 +222,7 @@ Tagging criteria are used to inform the refinement of flow features. They are ad
 
 - `max_*_level`: maximum level for use of this tag (beyond this level, this tag will not be used for refinement).
 
-The default values for tagging are defined in :code:`struct TaggingParm` in the `Tagging.H` file. Currently, the code supports tagging on density, pressure, velocity, vorticity, temperature, and volume fraction.
+The default values for tagging are defined in :code:`struct TaggingParm` in the `Tagging.H` file. Currently, the code supports tagging on density, pressure, velocity, vorticity, temperature, and volume fraction. However, additional tagging on fields can be leveraged through AMReX's tagging utility, see below for more details.
 
 Additionally, tagging is supported for a user-specified species which can function as a "flame tracer" using the keyword `ftrac` and selecting the species with `pelec.flame_trac_name`. For example, the following text in the input file would tag cells for refinement where the HO2 mass fraction exceeded :math:`150 \times 10^{-6}` up to a maximum of 4 levels of refinement:
 
@@ -231,6 +233,22 @@ Additionally, tagging is supported for a user-specified species which can functi
    tagging.ftracerr = 150.e-6
 
 Users can specify their own tagging criteria in the `prob.H` of their case. An example of this is provided in the Taylor-Green regression test.
+
+The above tagging criteria are implemented in PeleC. However, the user is encouraged to use the tagging functionality provided by AMReX and exposed in PeleC. Here are examples of how that is done:
+
+::
+
+   # Tag inside a box and a velocity magnitude value
+   tagging.refinement_indicators = yLow magvel
+   tagging.yLow.in_box_lo = -0.1  -0.52  -0.85
+   tagging.yLow.in_box_hi =  3.1 -0.45    0.85
+
+   tagging.magvel.max_level     = 2
+   tagging.magvel.value_greater = 1.2e4
+   tagging.magvel.field_name    = magvel
+
+The following keys are implemented: `value_greater`, `value_less`, `vorticity_greater`, `adjacent_difference_greater`, `in_box_lo` and `in_box_hi` (to specify a refinement region), `max_level`, `start_time`, and `end_time`. The `field_name` key can be any derived or state variable.
+
    
 Diagnostic Output
 ~~~~~~~~~~~~~~~~~
@@ -238,3 +256,56 @@ Diagnostic Output
 The verbosity flags `pelec.v` and `amr.v` control the extent of output related to the reacting flow solver and AMR grid printed during the simulation. When `pelec.v >= 1`, additional controls allow for fine tuning of the diagnostic output. The input flags `pelec.sum_interval` (number of coarse steps) and `pelec.sum_per` (simulation time) control how often integrals of conserved state quantities over the domain are computed and output. Additionally, if the `pelec.track_extrema` flag is set, the minima and maxima of several important derived quantities will be output whenever the integrals are output. By default, this includes the minimum and maximum across all massfractions, indicated by `massfrac`, but the `pelec.extrema_spec_name` can be set to `ALL` or an individual species name if this diagnostic for indiviudal species is of interest.
 
 To aid in the analysis of the diagnostic data, it can also be saved to log files. To do this, set `amr.data_log = datlog extremalog`, which will save the integrated values to `datlog` and the extrema to `extremalog`, if they are being computed based on the values of the flags described above. Additional problem-specific logs can also be created. Gridding information can also be recorded to a file specified with the `amr.grid_log` option. 
+
+Analyzing the data *a-posteriori* can become extremely cumbersome when dealing with extreme datasets.
+PeleC offers a set of diagnostics available at runtime and more are under development.
+Currently, the list of diagnostic contains:
+
+* `DiagFramePlane` : extract a plane aligned in the 'x','y' or 'z' direction across the AMR hierarchy, writing
+  a 2D plotfile compatible with Amrvis, Paraview or yt. Only available for 3D simulations.
+* `DiagPDF` : extract the PDF of a given variable and write it to an ASCII file.
+* `DiagConditional` : extract statistics (average and standard deviation, integral or sum) of a
+  set of variables conditioned on the value of given variable and write it to an ASCII file.
+
+When using `DiagPDF` or `DiagConditional`, it is possible to narrow down the diagnostic to a region of interest
+by specifying a set of filters, defining a range of interest for a variable. Note also the for these two diagnostics,
+fine-covered regions are masked. The following provide examples for each diagnostic:
+
+::
+
+   #--------------------------DIAGNOSTICS------------------------
+
+    pelec.diagnostics = xnormP condT pdfTest
+
+    pelec.xnormP.type = DiagFramePlane                             # Diagnostic type
+    pelec.xnormP.file = xNorm5mm                                   # Output file prefix
+    pelec.xnormP.normal = 0                                        # Plane normal (0, 1 or 2 for x, y or z)
+    pelec.xnormP.center = 0.5                                      # Coordinate in the normal direction
+    pelec.xnormP.int    = 5                                        # Frequency (as step #) for performing the diagnostic
+    pelec.xnormP.interpolation = Linear                            # [OPT, DEF=Linear] Interpolation type : Linear or Quadratic
+    pelec.xnormP.field_names = x_velocity magvort density          # List of variables outputed to the 2D pltfile
+
+    pelec.condT.type = DiagConditional                             # Diagnostic type
+    pelec.condT.file = condTest                                    # Output file prefix
+    pelec.condT.int  = 5                                           # Frequency (as step #) for performing the diagnostic
+    pelec.condT.filters = xHigh stoich                             # [OPT, DEF=None] List of filters
+    pelec.condT.xHigh.field_name = x                               # Filter field
+    pelec.condT.xHigh.value_greater = 0.006                        # Filter definition : value_greater, value_less, value_inrange
+    pelec.condT.stoich.field_name = mixture_fraction               # Filter field
+    pelec.condT.stoich.value_inrange = 0.053 0.055                 # Filter definition : value_greater, value_less, value_inrange
+    pelec.condT.conditional_type = Average                         # Conditional type : Average, Integral or Sum
+    pelec.condT.nBins = 50                                         # Number of bins for the conditioning variable
+    pelec.condT.condition_field_name = temp                        # Conditioning variable name
+    pelec.condT.field_names = heatRelease rho_omega_CH4            # List of variables to be treated
+
+    pelec.pdfTest.type = DiagPDF                                   # Diagnostic type
+    pelec.pdfTest.file = PDFTest                                   # Output file prefix
+    pelec.pdfTest.int  = 5                                         # Frequency (as step #) for performing the diagnostic
+    pelec.pdfTest.filters = innerFlame                             # [OPT, DEF=None] List of filters
+    pelec.pdfTest.innerFlame.field_name = temp                     # Filter field
+    pelec.pdfTest.innerFlame.value_inrange = 450.0 1500.0          # Filter definition : value_greater, value_less, value_inrange
+    pelec.pdfTest.nBins = 50                                       # Number of bins for the PDF
+    pelec.pdfTest.normalized = 1                                   # [OPT, DEF=1] PDF is normalized (i.e. integral is unity) ?
+    pelec.pdfTest.volume_weighted = 1                              # [OPT, DEF=1] Computation of the PDF is volume weighted ?
+    pelec.pdfTest.range = 0.0 2.0                                  # [OPT, DEF=data min/max] Specify the range of the PDF
+    pelec.pdfTest.field_name = x_velocity                          # Variable of interest

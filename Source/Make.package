@@ -8,7 +8,6 @@ CEXE_sources += BCfill.cpp
 CEXE_sources += Hydro.cpp
 CEXE_sources += Godunov.cpp
 CEXE_sources += PPM.cpp
-CEXE_sources += GradUtil.cpp
 CEXE_sources += IO.cpp 
 CEXE_sources += Sources.cpp
 CEXE_sources += Setup.cpp
@@ -16,7 +15,6 @@ CEXE_sources += main.cpp
 CEXE_sources += SumIQ.cpp
 CEXE_sources += SumUtils.cpp
 CEXE_sources += Tagging.cpp
-CEXE_sources += Diffterm.cpp
 CEXE_sources += Diffusion.cpp
 CEXE_sources += Utilities.cpp
 CEXE_sources += Transport.cpp
@@ -34,7 +32,6 @@ CEXE_sources += InitEB.cpp
 CEXE_headers += PeleC.H
 CEXE_headers += PeleCAmr.H
 CEXE_headers += IO.H
-CEXE_headers += Problem.H
 CEXE_headers += ProblemDerive.H
 CEXE_headers += Constants.H
 CEXE_headers += Hydro.H
@@ -62,6 +59,15 @@ ifeq ($(USE_PARTICLES), TRUE)
   CEXE_sources += Particle.cpp
 endif
 
+ifeq ($(USE_SOOT), TRUE)
+  CEXE_sources += Soot.cpp
+endif
+
 ifeq ($(USE_MASA), TRUE)
   CEXE_sources += MMS.cpp
+endif
+
+ifeq ($(USE_ASCENT), TRUE)
+  CEXE_sources += PeleAscent.cpp
+  CEXE_headers += PeleAscent.H
 endif

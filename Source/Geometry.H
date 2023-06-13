@@ -4,8 +4,7 @@
 #include "EB.H"
 #include "Utilities.H"
 
-namespace pele {
-namespace pelec {
+namespace pele::pelec {
 
 class Geometry : public physics::Factory<Geometry>
 {
@@ -88,6 +87,14 @@ public:
   build(const amrex::Geometry& geom, const int max_coarsening_level) override;
 };
 
-} // namespace pelec
-} // namespace pele
+class CheckpointFile : public Geometry::Register<CheckpointFile>
+{
+public:
+  static std::string identifier() { return "chkfile"; }
+
+  void
+  build(const amrex::Geometry& geom, const int max_coarsening_level) override;
+};
+
+} // namespace pele::pelec
 #endif

@@ -83,27 +83,26 @@ pc_fill_bndry_grad_stencil_quadratic(
       const int ivs[AMREX_SPACEDIM] = {
         AMREX_D_DECL(ebg[L].iv[0], ebg[L].iv[1], ebg[L].iv[2])};
       const int s[AMREX_SPACEDIM] = {AMREX_D_DECL(
-        (int)amrex::Math::copysign(1.0, n[c[0]]),
-        (int)amrex::Math::copysign(1.0, n[c[1]]),
-        (int)amrex::Math::copysign(1.0, n[c[2]]))};
+        (int)std::copysign(1.0, n[c[0]]), (int)std::copysign(1.0, n[c[1]]),
+        (int)std::copysign(1.0, n[c[2]]))};
       amrex::Real b[AMREX_SPACEDIM] = {AMREX_D_DECL(
         ebg[L].eb_centroid[c[0]] * s[0], ebg[L].eb_centroid[c[1]] * s[1],
         ebg[L].eb_centroid[c[2]] * s[2])};
 
       // From ivs, move to center of stencil, then move to lower-left of that
       const int baseiv[AMREX_SPACEDIM] = {AMREX_D_DECL(
-        ivs[0] + (int)amrex::Math::copysign(1.0, n[0]) - 1,
-        ivs[1] + (int)amrex::Math::copysign(1.0, n[1]) - 1,
-        ivs[2] + (int)amrex::Math::copysign(1.0, n[2]) - 1)};
+        ivs[0] + (int)std::copysign(1.0, n[0]) - 1,
+        ivs[1] + (int)std::copysign(1.0, n[1]) - 1,
+        ivs[2] + (int)std::copysign(1.0, n[2]) - 1)};
 
       const amrex::Real x[2] = {1.0, 2.0};
       amrex::Real y[2] = {
-        b[1] + (x[0] - b[0]) * amrex::Math::abs(n[c[1]] / n[c[0]]),
-        b[1] + (x[1] - b[0]) * amrex::Math::abs(n[c[1]] / n[c[0]])};
+        b[1] + (x[0] - b[0]) * std::abs(n[c[1]] / n[c[0]]),
+        b[1] + (x[1] - b[0]) * std::abs(n[c[1]] / n[c[0]])};
 #if AMREX_SPACEDIM > 2
       amrex::Real z[2] = {
-        b[2] + (x[0] - b[0]) * amrex::Math::abs(n[c[2]] / n[c[0]]),
-        b[2] + (x[1] - b[0]) * amrex::Math::abs(n[c[2]] / n[c[0]])};
+        b[2] + (x[0] - b[0]) * std::abs(n[c[2]] / n[c[0]]),
+        b[2] + (x[1] - b[0]) * std::abs(n[c[2]] / n[c[0]])};
 #endif
 
       int sh[AMREX_SPACEDIM] = {0};
@@ -111,16 +110,16 @@ pc_fill_bndry_grad_stencil_quadratic(
         sh[c[1]] = -s[1]; // Slide stencil down to avoid extrapolating, push
                           // up eb, shift down base later
         b[1] += 1;
-        y[0] = b[1] + (x[0] - b[0]) * amrex::Math::abs(n[c[1]] / n[c[0]]);
-        y[1] = b[1] + (x[1] - b[0]) * amrex::Math::abs(n[c[1]] / n[c[0]]);
+        y[0] = b[1] + (x[0] - b[0]) * std::abs(n[c[1]] / n[c[0]]);
+        y[1] = b[1] + (x[1] - b[0]) * std::abs(n[c[1]] / n[c[0]]);
       }
 #if AMREX_SPACEDIM > 2
       if (z[0] < 0.0 || z[1] < 0.0) {
         sh[c[2]] = -s[2]; // Slide stencil down to avoid extrapolating, push
                           // up eb, shift down base later
         b[2] += 1;
-        z[0] = b[2] + (x[0] - b[0]) * amrex::Math::abs(n[c[2]] / n[c[0]]);
-        z[1] = b[2] + (x[1] - b[0]) * amrex::Math::abs(n[c[2]] / n[c[0]]);
+        z[0] = b[2] + (x[0] - b[0]) * std::abs(n[c[2]] / n[c[0]]);
+        z[1] = b[2] + (x[1] - b[0]) * std::abs(n[c[2]] / n[c[0]]);
       }
 #endif
       const amrex::Real d[2] = {
@@ -195,7 +194,7 @@ pc_fill_bndry_grad_stencil_quadratic(
 
       for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
         grad_stencil[L].iv[dir] = ebg[L].iv[dir];
-        // Shift base down, if required;
+        // Shift base down, if required
         grad_stencil[L].iv_base[dir] = baseiv[dir] + sh[dir];
       }
 
@@ -277,9 +276,9 @@ pc_fill_bndry_grad_stencil_ls(
 
       // From ivs, move to center of stencil, then move to lower-left of that
       const int baseiv[AMREX_SPACEDIM] = {AMREX_D_DECL(
-        ivs[0] + (int)amrex::Math::copysign(1.0, n[0]) - 1,
-        ivs[1] + (int)amrex::Math::copysign(1.0, n[1]) - 1,
-        ivs[2] + (int)amrex::Math::copysign(1.0, n[2]) - 1)};
+        ivs[0] + (int)std::copysign(1.0, n[0]) - 1,
+        ivs[1] + (int)std::copysign(1.0, n[1]) - 1,
+        ivs[2] + (int)std::copysign(1.0, n[2]) - 1)};
 
       // set iv and iv_base
       for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
@@ -306,9 +305,9 @@ pc_fill_bndry_grad_stencil_ls(
 
             if (bx.contains(sten_iv)) {
               if (
-                !(AMREX_D_TERM(
-                  sten_iv[0] == ivs[0], &&sten_iv[1] == ivs[1],
-                  &&sten_iv[2] == ivs[2])) &&
+                (AMREX_D_TERM(
+                  sten_iv[0] != ivs[0], || sten_iv[1] != ivs[1],
+                  || sten_iv[2] != ivs[2])) &&
                 !flags(sten_iv).isCovered()) {
                 AMREX_D_TERM(xi[0] = sten_iv[0] - ivs[0];
                              , xi[1] = sten_iv[1] - ivs[1];
@@ -347,9 +346,9 @@ pc_fill_bndry_grad_stencil_ls(
 
               if (bx.contains(sten_iv)) {
                 if (
-                  !(AMREX_D_TERM(
-                    sten_iv[0] == ivs[0], &&sten_iv[1] == ivs[1],
-                    &&sten_iv[2] == ivs[2])) &&
+                  (AMREX_D_TERM(
+                    sten_iv[0] != ivs[0], || sten_iv[1] != ivs[1],
+                    || sten_iv[2] != ivs[2])) &&
                   !flags(sten_iv).isCovered()) {
                   grad_stencil[L].val AMREX_D_TERM([ii], [jj], [kk]) =
                     fac * ebg[L].eb_area *
@@ -407,8 +406,8 @@ pc_fill_flux_interp_stencil(
         jj = 0.0;
       }
       const amrex::Real ct = fc(iv, 0);
-      const int tn = (int)amrex::Math::copysign(1.0, ct);
-      const amrex::Real act = amrex::Math::abs(ct);
+      const int tn = (int)std::copysign(1.0, ct);
+      const amrex::Real act = std::abs(ct);
       sten[L].val[1] = fa(iv) * (1.0 - act);
       sten[L].val[tn + 1] = fa(iv) * act;
 #elif AMREX_SPACEDIM == 3
@@ -419,10 +418,10 @@ pc_fill_flux_interp_stencil(
       }
       const amrex::Real ct0 = fc(iv, 0);
       const amrex::Real ct1 = fc(iv, 1);
-      const int t0n = (int)amrex::Math::copysign(1.0, ct0);
-      const int t1n = (int)amrex::Math::copysign(1.0, ct1);
-      const amrex::Real act0 = amrex::Math::abs(ct0);
-      const amrex::Real act1 = amrex::Math::abs(ct1);
+      const int t0n = (int)std::copysign(1.0, ct0);
+      const int t1n = (int)std::copysign(1.0, ct1);
+      const amrex::Real act0 = std::abs(ct0);
+      const amrex::Real act1 = std::abs(ct1);
       sten[L].val[1][1] = fa(iv) * (1.0 - act0) * (1.0 - act1);
       sten[L].val[t0n + 1][1] = fa(iv) * act0 * (1.0 - act1);
       sten[L].val[1][t1n + 1] = fa(iv) * (1.0 - act0) * act1;
@@ -735,8 +734,7 @@ pc_eb_clean_massfrac(
   amrex::Array4<amrex::Real> const& div)
 {
   // Compute the new state and the mask
-  amrex::IArrayBox mask(bx);
-  amrex::Elixir mask_eli = mask.elixir();
+  amrex::IArrayBox mask(bx, 1, amrex::The_Async_Arena());
   mask.setVal<amrex::RunOn::Device>(0, mask.box());
   const auto& mask_arr = mask.array();
   amrex::ParallelFor(
