@@ -444,7 +444,7 @@ pc_diffusion_flux(
 
 #ifdef PELEC_USE_FORCING
   // Diffusion term for the vibrational energy
-  const amrex::Real devibdx = dxinv * (q(iv, QFA) - q(ivm, QFA));
+  const amrex::Real devibdx = dxinv[dir] * (q(iv, QFA) - q(ivm, QFA));
   amrex::Real diff_evib = coef[dComp_rhoD + N2_ID]*devibdx; // Diffusion coeff. from N2 
 #endif
   const amrex::Real dTdd = dxinv[dir] * (q(iv, QTEMP) - q(ivm, QTEMP));

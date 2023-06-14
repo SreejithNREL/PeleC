@@ -134,21 +134,6 @@ PeleC::fill_ext_source(
 #endif
       });
   }
-
-  // //New development branch implementation. Set source terms to zero for covered cells
-  // // auto const& Sos = state_old.const_arrays();
-  // // auto const& Sns = state_new.const_arrays();
-  // auto const& Farrs = ext_src.arrays();
-  // auto const& flagarrs = flags.const_arrays();
-  // const amrex::IntVect ngs(ng);
-  // amrex::ParallelFor(
-  //   ext_src, ngs, NVAR,
-  //   [=] AMREX_GPU_DEVICE(int nbx, int i, int j, int k, int n) noexcept {
-  //     if (!flagarrs[nbx](i, j, k).isCovered()) {
-  //       Farrs[nbx](i, j, k, n) = 0.0;
-  //     }
-  //   });
-  // amrex::Gpu::synchronize();
 }
 
 
@@ -196,5 +181,5 @@ amrex::Real heavyside(amrex::Real t){
     amrex::Real x = 1.0;
     return x;
   }
-
+}
 #endif

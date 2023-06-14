@@ -409,7 +409,11 @@ PeleC::zero_in_body(amrex::MultiFab& S) const
 // Sets up implicit function using EB2 infrastructure
 void
 initialize_EB2(
-  const amrex::Geometry& geom, const int /*unused*/, const int max_level)
+  const amrex::Geometry& geom,
+  const int eb_max_level,
+  const int max_level,
+  const amrex::Vector<amrex::IntVect>& ref_ratio,
+  const amrex::IntVect& max_grid_size)
 {
   BL_PROFILE("PeleC::initialize_EB2()");
 
@@ -421,8 +425,6 @@ initialize_EB2(
 
   int max_coarsening_level = 0;
   amrex::ParmParse ppamr("amr");
-  amrex::Vector<int> ref_ratio(max_level, 2);
-  ppamr.queryarr("ref_ratio", ref_ratio, 0, max_level);
   for (int lev = 0; lev < max_level; ++lev) {
     max_coarsening_level +=
       (ref_ratio[lev] == 2 ? 1

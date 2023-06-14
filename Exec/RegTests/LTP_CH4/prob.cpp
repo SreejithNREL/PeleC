@@ -295,13 +295,13 @@ void PeleC::problem_post_timestep()
 {
 }
 
-// void PeleC::problem_post_init(){}
-void PeleC::problem_post_init(
- int i,
- int j,
- int k,
- amrex::Array4<amrex::Real> const& state,
- amrex::GeometryData const& geomdata){}
+void PeleC::problem_post_init(){}
+//void PeleC::problem_post_init(
+// int i,
+// int j,
+// int k,
+// amrex::Array4<amrex::Real> const& state,
+// amrex::GeometryData const& geomdata){}
 //{
 //
 //  amrex::Real rho = h_prob_parm_device->fuel_state[URHO];
